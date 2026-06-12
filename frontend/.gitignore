@@ -1,0 +1,59 @@
+# .gitignore for the Gemma Compute Monitor Next.js frontend.
+#
+# Scoped to the frontend/ application only. The repository root keeps its own
+# Python-oriented .gitignore; this file does not affect or override it.
+#
+# Purpose: enforce Railway deployment hygiene by keeping installed dependencies,
+# build output, and LOCAL ENV FILES out of version control. Local env files may
+# contain NEXT_PUBLIC_PASSWORD and must never be committed. The committed
+# template `.env.example` is intentionally kept tracked (see "Local env files").
+#
+# Conventions: plain text, one pattern per line, comments prefixed with '#'.
+# Leading-slash patterns are anchored to this frontend/ directory.
+# See https://git-scm.com/docs/gitignore for full pattern syntax.
+
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# Testing
+/coverage
+
+# Next.js build output
+# No trailing slash: these still ignore the directories and all their contents,
+# while also letting `git check-ignore` report them as ignored before the build
+# has created them (a trailing-slash, directory-only pattern would not).
+/.next
+/out
+
+# Production build
+/build
+
+# Misc
+.DS_Store
+*.pem
+
+# Debug logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# Local env files (CRITICAL: keep secrets such as NEXT_PUBLIC_PASSWORD out of git).
+# These explicit patterns match the real local env files but NOT `.env.example`,
+# which is the committed template that must stay tracked. The negation below is a
+# defensive safeguard that re-includes the template even if the patterns above are
+# ever broadened to a wildcard such as `.env*`.
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+!.env.example
+
+# TypeScript
+# `next-env.d.ts` is regenerated on every `next dev` / `next build`, so ignoring
+# it avoids spurious diffs.
+*.tsbuildinfo
+next-env.d.ts
