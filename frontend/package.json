@@ -1,0 +1,27 @@
+{
+  "name": "gemma-compute-monitor-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Gemma Compute Monitor - Next.js frontend (Railway-deployed). Setup-agent baseline manifest; dev agents may refine.",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "next": "^16.2.7",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.0",
+    "@types/node": "^20.19.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0"
+  },
+  "engines": {
+    "node": ">=20.20.2"
+  }
+}

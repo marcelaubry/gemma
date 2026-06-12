@@ -1,0 +1,51 @@
+# Gemma Compute Monitor - Backend dependencies
+# Baseline established by setup agent on Linux x86_64 (Ubuntu 25.10), Python 3.13.7.
+#
+# =====================================================================
+# PLATFORM NOTE - jax-metal (Apple Silicon ONLY; NOT installable here)
+# =====================================================================
+# The product targets a MacBook Pro (Apple Silicon) with the JAX Metal
+# backend. The AAP-pinned jax-metal==0.1.1 + jaxlib==0.4.25 have NO Linux
+# x86_64 distribution ("No matching distribution found") and CANNOT be
+# installed on this Linux baseline/CI host.
+#   * On Apple Silicon (macOS 14+): install jax-metal==0.1.1 and its matching
+#     jaxlib FIRST, before the packages below, and NEVER upgrade jax-metal
+#     without explicit user approval (AAP 0.7.1).
+#   * On Linux/CI: JAX resolves to the modern CPU build (jax/jaxlib 0.10.1)
+#     pulled in transitively by gemma 4.0.1 - CPU-only, NO CUDA (verified
+#     jax.default_backend()=="cpu").
+#
+# =====================================================================
+# VERSION-OVERRIDE NOTE (resolved against gemma 4.0.1's modern stack)
+# =====================================================================
+# gemma 4.0.1 + kauldron force a modern stack (starlette 1.3.0, pydantic
+# 2.13.x, modern jax). The AAP's early-2024 web pins are incompatible with it
+# (fastapi==0.111.0 pins starlette<0.38, which would break fastmcp/mcp). They
+# are resolved UP to the nearest gemma-compatible versions, mirroring the
+# documented JAX version tension (AAP 0.7.2). Originals shown for traceability.
+
+# --- Apple-Silicon-only (install first on macOS; unavailable on Linux) -------
+# jax-metal==0.1.1   ; sys_platform == "darwin" and platform_machine == "arm64"
+# jaxlib==0.4.25     ; sys_platform == "darwin" and platform_machine == "arm64"
+
+# --- Web framework / SSE / system metrics (gemma-4.0.1-compatible) -----------
+fastapi==0.136.3            # AAP pin 0.111.0 overridden (needs starlette>=0.46)
+uvicorn[standard]==0.49.0   # AAP pin 0.29.0 overridden
+sse-starlette==3.4.4        # AAP pin 2.1.0 overridden
+psutil==7.2.2               # AAP pin 5.9.8 overridden
+
+# --- Model library (Gemma) ---------------------------------------------------
+# Installed EDITABLE from the repository root (one level up from backend/):
+#   pip install -e ..
+# Reproduce the full baseline (run from the repository root) with:
+#   python3 -m venv .venv && source .venv/bin/activate
+#   pip install git+https://github.com/google/etils \
+#               git+https://github.com/google-research/kauldron \
+#               git+https://github.com/google-deepmind/dialog
+#   pip install -e ".[dev]"
+#   pip install -r backend/requirements.txt
+#
+# NOTE: gemma is NOT listed as a flat '-e ..' requirement here because (a) pip
+# resolves editable paths in a requirements file relative to the CWD (fragile),
+# and (b) gemma 4.0.1 needs the git-deps preamble above installed FIRST. Install
+# gemma editable separately with the sequence shown above.
