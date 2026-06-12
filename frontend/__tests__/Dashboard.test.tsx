@@ -166,4 +166,50 @@ describe("Dashboard", () => {
       expect(screen.getByTestId("health-status")).toHaveTextContent("ready"),
     );
   });
+
+  it("styles the prompt input and Analyze button via CSS classes (F3: keyboard-focus + interactive states)", async () => {
+    render(<Dashboard />);
+
+    // Controls carry the globals.css classes that define :focus-visible,
+    // :hover, :active, and :disabled states — replacing the removed inline
+    // `outline: none`, which left no visible keyboard-focus indicator.
+    const input = screen.getByLabelText("Prompt");
+    expect(input).toHaveClass("gcm-dash__input");
+    expect(screen.getByRole("button", { name: "Analyze" })).toHaveClass(
+      "gcm-dash__button",
+    );
+    // The input no longer suppresses the focus outline via an inline style.
+    expect(input.getAttribute("style") ?? "").not.toContain("outline");
+
+    await waitFor(() =>
+      expect(screen.getByTestId("health-status")).toHaveTextContent("ready"),
+    );
+  });
+
+  it("renders resilience/error banners with role='alert' (F4: assertive live region)", async () => {
+    // Surface all three resilience banners at once: backend offline
+    // (checkHealth → null), model warming, and a stream error.
+    mockCheckHealth.mockResolvedValue(null);
+    mockUseEventSource.mockReturnValue(
+      hookState({
+        status: "error",
+        error: "Request failed with status 500",
+        warming: true,
+      }),
+    );
+    render(<Dashboard />);
+
+    const offline = await screen.findByText(BACKEND_OFFLINE_MESSAGE);
+    expect(offline).toHaveAttribute("role", "alert");
+    expect(screen.getByText(MODEL_WARMING_MESSAGE)).toHaveAttribute(
+      "role",
+      "alert",
+    );
+    expect(screen.getByText("Request failed with status 500")).toHaveAttribute(
+      "role",
+      "alert",
+    );
+    // None of the resilience banners use the weaker role="status".
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
 });

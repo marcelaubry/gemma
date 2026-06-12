@@ -156,3 +156,75 @@ body {
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+/* ---------------------------------------------------------------------------
+ * Dashboard (frontend/components/Dashboard.tsx) — prompt form controls.
+ *
+ * Defined here (not as inline React `style` objects) so the prompt input and
+ * the Analyze button get real :hover / :active / :focus-visible / :disabled
+ * states. Inline style objects cannot express pseudo-classes, so the input
+ * previously set `outline: none` with NO visible keyboard-focus replacement,
+ * and the button had no interactive states — both accessibility failures for
+ * keyboard users. Every value reuses the palette TOKENS above; dark-only, no
+ * new palette values and no light-mode branch.
+ * ------------------------------------------------------------------------- */
+
+.gcm-dash__form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.gcm-dash__input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #e5e7eb;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+.gcm-dash__input:focus {
+  border-color: var(--accent-primary);
+}
+
+/* Visible keyboard-focus indicator — replaces the removed `outline: none`. */
+.gcm-dash__input:focus-visible {
+  border-color: var(--accent-primary);
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.gcm-dash__button {
+  padding: 10px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 120ms ease, opacity 120ms ease;
+}
+
+.gcm-dash__button:hover:not(:disabled) {
+  background: var(--accent-secondary);
+}
+
+.gcm-dash__button:active:not(:disabled) {
+  background: var(--accent-secondary);
+  transform: translateY(1px);
+}
+
+.gcm-dash__button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.gcm-dash__button:disabled {
+  background: var(--border);
+  opacity: 0.7;
+  cursor: not-allowed;
+}

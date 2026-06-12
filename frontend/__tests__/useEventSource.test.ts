@@ -25,6 +25,7 @@ import useEventSource, {
   splitSseFrames,
   parseSseData,
   parseTelemetryFrame,
+  isValidLayerEvent,
   BUSY_MESSAGE,
 } from "@/lib/useEventSource";
 import { MODEL_WARMING_MESSAGE } from "@/lib/api";
@@ -148,6 +149,34 @@ describe("telemetry type guards", () => {
   });
 });
 
+describe("isValidLayerEvent (F5 contract validation)", () => {
+  it("accepts a fully-formed LayerEvent (all seven numeric fields finite)", () => {
+    expect(isValidLayerEvent(makeLayer(0))).toBe(true);
+    expect(isValidLayerEvent(makeLayer(33, 100))).toBe(true);
+  });
+
+  it("rejects non-objects and null", () => {
+    expect(isValidLayerEvent(null)).toBe(false);
+    expect(isValidLayerEvent(undefined)).toBe(false);
+    expect(isValidLayerEvent(42)).toBe(false);
+    expect(isValidLayerEvent("layer")).toBe(false);
+  });
+
+  it("rejects an empty object and objects missing any required field", () => {
+    expect(isValidLayerEvent({})).toBe(false);
+    const missingOne: Partial<LayerEvent> = { ...makeLayer(1) };
+    delete missingOne.elapsed_ms;
+    expect(isValidLayerEvent(missingOne)).toBe(false);
+  });
+
+  it("rejects non-finite or non-numeric field values", () => {
+    expect(isValidLayerEvent({ ...makeLayer(2), gpu_pct: NaN })).toBe(false);
+    expect(isValidLayerEvent({ ...makeLayer(2), cpu_pct: Infinity })).toBe(false);
+    expect(isValidLayerEvent({ ...makeLayer(2), layer: "0" })).toBe(false);
+    expect(isValidLayerEvent({ ...makeLayer(2), memory_used_gb: null })).toBe(false);
+  });
+});
+
 describe("useEventSource streaming", () => {
   it("parses exactly 34 layer events then the final event (never 18) and cancels the reader", async () => {
     const layerFrames = Array.from({ length: 34 }, (_, i) =>
@@ -199,6 +228,36 @@ describe("useEventSource streaming", () => {
 
     await waitFor(() => expect(result.current.status).toBe("done"));
     expect(result.current.layers).toHaveLength(2);
+  });
+
+  it("ignores malformed non-final frames and never appends them as layers (F5)", async () => {
+    const frames = [
+      frame(makeLayer(0, 10)), // valid
+      frame({}), // malformed: empty object
+      frame({ layer: 1 }), // malformed: missing fields
+      frame({ ...makeLayer(2, 30), gpu_pct: "high" }), // malformed: wrong type
+      frame(makeLayer(3, 40)), // valid
+      frame({ per_token_ms: [5, 6], done: true }),
+    ];
+    mockFetchStream(frames);
+
+    const { result } = renderHook(() => useEventSource());
+    act(() => {
+      result.current.start("hi");
+    });
+
+    await waitFor(() => expect(result.current.status).toBe("done"));
+    // Only the two well-formed layer events are kept; the three malformed
+    // frames are silently dropped (never appended with undefined fields).
+    expect(result.current.layers).toHaveLength(2);
+    expect(result.current.layers.map((l) => l.layer)).toEqual([0, 3]);
+    expect(result.current.latestLayer?.layer).toBe(3);
+    expect(
+      result.current.layers.every(
+        (l) => typeof l.gpu_pct === "number" && Number.isFinite(l.gpu_pct),
+      ),
+    ).toBe(true);
+    expect(result.current.finalEvent?.done).toBe(true);
   });
 
   it("surfaces MODEL_WARMING_MESSAGE on HTTP 503", async () => {

@@ -173,6 +173,66 @@ describe("GpuWaveform", () => {
     rafSpy.mockRestore();
     cancelSpy.mockRestore();
   });
+
+  it("resets and appends fresh samples on a second sequential analysis (F2 regression)", () => {
+    const callbacks: FrameRequestCallback[] = [];
+    const rafSpy = jest
+      .spyOn(window, "requestAnimationFrame")
+      .mockImplementation((cb: FrameRequestCallback) => {
+        callbacks.push(cb);
+        return callbacks.length;
+      });
+    const cancelSpy = jest
+      .spyOn(window, "cancelAnimationFrame")
+      .mockImplementation(() => undefined);
+
+    // jsdom does no layout: clientWidth/clientHeight are 0, so the component
+    // falls back to FALLBACK_H = 160. A sample's plotted y is 160 - (gpu/100)*160.
+    const yFor = (gpu: number) => 160 - (gpu / 100) * 160;
+    const near = (ys: number[], target: number) =>
+      ys.some((y) => Math.abs(y - target) < 1);
+
+    // --- Run 1: 34 layers at gpu_pct = 90 → samples plotted near the top (y ≈ 16).
+    const run1 = Array.from({ length: GEMMA3_4B_LAYERS }, (_, i) => makeLayer(i, 90));
+    const { rerender } = render(<GpuWaveform layers={run1} />);
+
+    const canvas = screen.getByTestId("gpu-waveform-canvas") as HTMLCanvasElement;
+    // jest-canvas-mock records every 2D-context call; read back the plotted
+    // lineTo y-coordinates to verify which run's samples are on screen.
+    const ctx = canvas.getContext("2d") as unknown as {
+      __getEvents: () => { type: string; props: { x: number; y: number } }[];
+      __clearEvents: () => void;
+    };
+
+    const drawAndCollectYs = (): number[] => {
+      ctx.__clearEvents();
+      act(() => {
+        callbacks[callbacks.length - 1]?.(performance.now());
+      });
+      return ctx
+        .__getEvents()
+        .filter((e) => e.type === "lineTo")
+        .map((e) => e.props.y);
+    };
+
+    const run1Ys = drawAndCollectYs();
+    expect(near(run1Ys, yFor(90))).toBe(true); // run-1 90% samples drawn (y ≈ 16)
+
+    // --- New analysis: layers reset to [] then grow again with DIFFERENT data.
+    rerender(<GpuWaveform layers={[]} />);
+    const run2 = Array.from({ length: GEMMA3_4B_LAYERS }, (_, i) => makeLayer(i, 10));
+    rerender(<GpuWaveform layers={run2} />);
+
+    const run2Ys = drawAndCollectYs();
+    expect(near(run2Ys, yFor(10))).toBe(true); // run-2 10% samples drawn (y ≈ 144)
+    // The stale run-1 90% samples (y ≈ 16) must be GONE — proving the per-run
+    // reset cleared samplesRef/lastCountRef. Without the fix, the second run
+    // would either keep the stale samples or append none at all.
+    expect(near(run2Ys, yFor(90))).toBe(false);
+
+    rafSpy.mockRestore();
+    cancelSpy.mockRestore();
+  });
 });
 
 describe("PerTokenCost", () => {

@@ -112,6 +112,40 @@ export function parseTelemetryFrame(frame: string): TelemetryEvent | null {
   }
 }
 
+/**
+ * Required numeric fields of the immutable LayerEvent contract (mirrors
+ * backend/app/schemas.py). The backend always emits all seven, but a
+ * malformed/empty frame (e.g. `{}`) must never be appended as a "layer" with
+ * `undefined` fields — that would corrupt the bar chart, waveform, and memory
+ * panels downstream.
+ */
+const LAYER_NUMERIC_FIELDS: readonly (keyof LayerEvent)[] = [
+  "layer",
+  "gpu_pct",
+  "cpu_pct",
+  "memory_used_gb",
+  "kv_cache_gb",
+  "activation_gb",
+  "elapsed_ms",
+];
+
+/**
+ * Runtime guard: a parsed payload is a well-formed LayerEvent only when every
+ * required field is a FINITE number (rejects missing/undefined, null, NaN,
+ * ±Infinity, and non-numeric types). handleFrame uses this to reject malformed
+ * non-final frames before they ever enter panel state.
+ */
+export function isValidLayerEvent(payload: unknown): payload is LayerEvent {
+  if (typeof payload !== "object" || payload === null) {
+    return false;
+  }
+  const record = payload as Record<string, unknown>;
+  return LAYER_NUMERIC_FIELDS.every(
+    (field) =>
+      typeof record[field] === "number" && Number.isFinite(record[field]),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // The hook.
 // ---------------------------------------------------------------------------
@@ -249,22 +283,29 @@ export function useEventSource(): UseEventSourceResult {
             if (payload === null) {
               return false;
             }
-            // First real event clears the warm-up notice.
-            clearWarmingTimer();
-            if (mountedRef.current) {
-              setWarming(false);
-            }
             if (isFinalEvent(payload)) {
+              // First real event clears the warm-up notice.
+              clearWarmingTimer();
               if (mountedRef.current) {
+                setWarming(false);
                 setFinalEvent(payload);
                 setStatus("done");
               }
               return true; // signal completion
             }
-            const layer = payload as LayerEvent;
+            // Defensive contract validation (F5): a non-final payload is
+            // accepted as a LayerEvent only when every required numeric field
+            // is present and finite. Malformed frames (e.g. `{}`) are ignored
+            // so they never corrupt panel state with undefined fields.
+            if (!isValidLayerEvent(payload)) {
+              return false;
+            }
+            // A valid layer event is also the first real event when warming.
+            clearWarmingTimer();
             if (mountedRef.current) {
-              setLayers((prev) => [...prev, layer]);
-              setLatestLayer(layer);
+              setWarming(false);
+              setLayers((prev) => [...prev, payload]);
+              setLatestLayer(payload);
             }
             return false;
           };

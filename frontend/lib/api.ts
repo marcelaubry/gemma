@@ -20,11 +20,12 @@ export const BACKEND_OFFLINE_MESSAGE =
 
 /**
  * Verbatim resilience message shown when /analyze does not begin streaming
- * within 5 seconds. Reproduced EXACTLY from AAP §0.5.3 — the dash between 20
- * and 40 is an en-dash (U+2013). Do not alter the wording or punctuation.
+ * within 5 seconds. Reproduced EXACTLY from the CP-PATH5 contract (AAP §0.5.3):
+ * the dash between 20 and 40 is an en-dash (U+2013) and there is intentionally
+ * NO trailing period. Do not alter the wording or punctuation.
  */
 export const MODEL_WARMING_MESSAGE =
-  "Model warming up, this may take 20–40 seconds on first run.";
+  "Model warming up, this may take 20–40 seconds on first run";
 
 /** Default timeout (ms) for the /health probe. */
 export const HEALTH_TIMEOUT_MS = 3000;
@@ -90,10 +91,40 @@ export async function isBackendReady(timeoutMs?: number): Promise<boolean> {
 }
 
 /**
+ * Resolve after `ms` milliseconds OR immediately when `signal` aborts —
+ * whichever comes first. The timer and the abort listener are always torn down
+ * so no handles leak. Used by pollHealthUntilReady so an aborted poll stops
+ * waiting promptly instead of blocking for the full inter-attempt interval.
+ */
+function abortAwareDelay(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve) => {
+    if (signal?.aborted) {
+      resolve();
+      return;
+    }
+    // `finish` is a hoisted declaration so it can be passed to setTimeout
+    // before its textual position; it always clears the timer and detaches the
+    // abort listener, then resolves exactly once (whichever path fires first).
+    const timer = setTimeout(finish, ms);
+    function finish(): void {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
+      resolve();
+    }
+    signal?.addEventListener("abort", finish, { once: true });
+  });
+}
+
+/**
  * Poll /health until the model reports "ready" (or the attempt budget is
  * exhausted). Resolves with the final HealthResponse, or `null` if the backend
  * stayed unreachable / never became ready within the budget. Useful for the
  * Dashboard to know when to enable the analyze action.
+ *
+ * Short-circuits to `null` when NEXT_PUBLIC_API_URL is unset — checkHealth()
+ * would return null on every attempt, so looping and sleeping would be pure
+ * waste. The inter-attempt wait is abort-aware: if `options.signal` aborts
+ * mid-wait the poll stops promptly instead of blocking for the full interval.
  */
 export async function pollHealthUntilReady(options?: {
   intervalMs?: number;
@@ -106,6 +137,11 @@ export async function pollHealthUntilReady(options?: {
   const timeoutMs = options?.timeoutMs ?? HEALTH_TIMEOUT_MS;
   const signal = options?.signal;
 
+  // Backend not configured: every probe would fail — do not retry or sleep.
+  if (!getApiBaseUrl()) {
+    return null;
+  }
+
   let last: HealthResponse | null = null;
   for (let attempt = 0; attempt < maxAttempts; attempt++) {
     if (signal?.aborted) {
@@ -115,7 +151,9 @@ export async function pollHealthUntilReady(options?: {
     if (last?.status === "ready") {
       return last;
     }
-    await new Promise<void>((resolve) => setTimeout(resolve, intervalMs));
+    // Abort-aware wait: resolve promptly if the caller aborts mid-interval
+    // instead of blocking for the full `intervalMs`.
+    await abortAwareDelay(intervalMs, signal);
   }
   return last;
 }

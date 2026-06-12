@@ -169,7 +169,7 @@ The UI surfaces two operator-facing messages verbatim:
 
 - If `/analyze` does not begin streaming within 5 seconds:
 
-  > Model warming up, this may take 20–40 seconds on first run.
+  > Model warming up, this may take 20–40 seconds on first run
 
 ## Railway deployment
 

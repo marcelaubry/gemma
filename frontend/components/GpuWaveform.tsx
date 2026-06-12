@@ -38,6 +38,17 @@ export default function GpuWaveform({ layers }: GpuWaveformProps) {
   useEffect(() => {
     const now =
       typeof performance !== "undefined" ? performance.now() : Date.now();
+    // A new analysis run resets `layers` back to [] (see Dashboard /
+    // useEventSource.start). Detect that the array shrank and reset the
+    // waveform's per-run state so (a) stale samples from the previous run are
+    // discarded immediately and (b) the append cursor restarts from 0.
+    // Without this, a second run's growth never exceeds the prior run's stale
+    // count and no new samples are appended — the waveform would freeze on the
+    // first run's data.
+    if (layers.length < lastCountRef.current) {
+      lastCountRef.current = 0;
+      samplesRef.current = [];
+    }
     for (let i = lastCountRef.current; i < layers.length; i++) {
       samplesRef.current.push({ t: now, v: clamp(layers[i].gpu_pct, 0, 100) });
     }

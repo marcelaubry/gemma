@@ -104,48 +104,39 @@ export default function Dashboard() {
         </p>
       </header>
 
-      <form
-        onSubmit={onSubmit}
-        style={{ display: "flex", gap: 8, marginBottom: 16 }}
-      >
+      {/*
+        Form controls are styled via CSS classes in app/globals.css (not inline
+        style objects) so the input and button expose real :focus-visible,
+        :hover, :active, and :disabled states for keyboard users. The button's
+        disabled visual (while streaming or with an empty prompt) is handled by
+        `.gcm-dash__button:disabled`.
+      */}
+      <form onSubmit={onSubmit} className="gcm-dash__form">
         <input
           aria-label="Prompt"
           placeholder="Enter a prompt to analyze…"
           value={prompt}
           onChange={(e: ChangeEvent<HTMLInputElement>) => setPrompt(e.target.value)}
-          style={{
-            flex: 1,
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: `1px solid ${PALETTE.border}`,
-            background: PALETTE.panel,
-            color: "#e5e7eb",
-            fontSize: 14,
-            outline: "none",
-          }}
+          className="gcm-dash__input"
         />
         <button
           type="submit"
           disabled={status === "streaming" || prompt.trim().length === 0}
-          style={{
-            padding: "10px 18px",
-            borderRadius: 8,
-            border: "none",
-            background: status === "streaming" ? PALETTE.border : PALETTE.primary,
-            color: "#ffffff",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: status === "streaming" ? "not-allowed" : "pointer",
-          }}
+          className="gcm-dash__button"
         >
           {status === "streaming" ? "Analyzing…" : "Analyze"}
         </button>
       </form>
 
+      {/*
+        Resilience/error banners (backend-offline, model-warming, stream-error)
+        are urgent operator notices, so they use role="alert" (an assertive live
+        region) per the checkpoint accessibility requirement.
+      */}
       {banners.map((b) => (
         <div
           key={b.key}
-          role="status"
+          role="alert"
           style={{
             background: PALETTE.panel,
             border: `1px solid ${b.color}`,
