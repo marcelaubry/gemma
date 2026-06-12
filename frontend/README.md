@@ -129,26 +129,25 @@ in TypeScript in `lib/types.ts`:
 
 **`GET /health`** response:
 
-```json
-{ "status": "ready" | "loading", "model": "gemma-3-4b" }
+```
+{ status: "ready" | "loading", model: "gemma-3-4b" }
 ```
 
 **`POST /analyze`** request body:
 
-```json
-{ "prompt": "string" }
+```
+{ prompt: string }
 ```
 
 The `/analyze` response is a Server-Sent Events stream of one **layer event**
 per transformer layer, terminated by a final **per-token event**:
 
-```json
-{ "layer": 0, "gpu_pct": 0.0, "cpu_pct": 0.0, "memory_used_gb": 0.0,
-  "kv_cache_gb": 0.0, "activation_gb": 0.0, "elapsed_ms": 0.0 }
+```
+{ layer: int, gpu_pct: float, cpu_pct: float, memory_used_gb: float, kv_cache_gb: float, activation_gb: float, elapsed_ms: float }
 ```
 
-```json
-{ "per_token_ms": [0.0], "done": true }
+```
+{ per_token_ms: float[], done: true }
 ```
 
 `layer` is the **0-based** transformer layer index; the UI displays it as
@@ -223,7 +222,8 @@ npm test
 Tests use **Jest + React Testing Library** (wired through `next/jest`) and live
 in `frontend/__tests__/`. They cover the **auth gate** (correct / incorrect
 password behavior) and **panel animation** (panels render and update from mock
-telemetry events). The HTML `<canvas>` is mocked via `jest-canvas-mock`.
+telemetry events). The HTML `<canvas>` used by the GPU waveform is mocked via
+`jest-canvas-mock` (configured in `jest.setup.js`).
 
 ## Project structure
 
@@ -244,13 +244,18 @@ frontend/
 │   ├── types.ts          # TypeScript mirrors of the four immutable contracts
 │   ├── useEventSource.ts # Fetch-streaming SSE client hook
 │   └── api.ts            # /health polling + resilience messaging
+├── __tests__/            # Jest + RTL tests (auth gate, panel animation)
 ├── package.json
 ├── next.config.js
 ├── tsconfig.json
+├── jest.config.js        # Jest config produced via next/jest
+├── jest.setup.js         # jest-dom matchers + jest-canvas-mock
 ├── railway.json
 └── .env.example
 ```
 
-Modules beyond `PasswordGate.tsx`, `app/globals.css`, `lib/types.ts`, and the
-configuration files are delivered in later checkpoints; the structure above is
-the complete intended frontend.
+The **App Router** entry point is `app/page.tsx`, which renders `PasswordGate`
+and — once the shared password is accepted — mounts `Dashboard`. `Dashboard`
+opens the `/analyze` SSE stream through the `lib/useEventSource.ts` hook and
+fans each telemetry event out to the four panels, then renders the per-token
+cost strip after the final `{ done: true }` event.
