@@ -84,47 +84,60 @@ python3.12 -m venv .venv && source .venv/bin/activate
 # 2. Install the Metal backend FIRST (order matters — version-lock sensitive).
 pip install jax-metal==0.1.1
 
-# 3. Install the matching jaxlib.
-pip install jaxlib==0.4.25
+# 3. Install the matching jaxlib AND jax (released in lockstep — keep equal).
+#    0.5.0 is the highest `jax-metal==0.1.1`-compatible version (0.4.25 was too
+#    old: the Metal PJRT plugin needs jaxlib>=0.4.34); 0.5.1+ break jax-metal.
+pip install jaxlib==0.5.0 jax==0.5.0
 
 # 4. Install the web stack / SSE / system-metrics dependencies.
-#    (In zsh, quote the bracketed extra: 'uvicorn[standard]==0.29.0'.)
-pip install fastapi==0.111.0 uvicorn[standard]==0.29.0 sse-starlette==2.1.0 psutil==5.9.8
+#    (In zsh, quote the bracketed extra: 'uvicorn[standard]==0.49.0'.)
+#    fastapi 0.136.3 pulls a FIXED Starlette (>=0.46.0); the old 0.111.0 forced
+#    the vulnerable starlette 0.37.2.
+pip install fastapi==0.136.3 uvicorn[standard]==0.49.0 sse-starlette==3.4.4 psutil==7.2.2
 
-# 5. Install gemma LAST — used AS-IS, editable install of the in-repo source.
-#    `..` is the repository root (it holds gemma's pyproject.toml) and is
-#    resolved relative to the current directory, so this MUST be run from
-#    inside backend/. Portable alternative: `pip install gemma==4.0.1`.
-pip install -e ..
+# 5. Install gemma LAST — used AS-IS (version 4.0.1). The portable PyPI pin is
+#    the default and resolves from any directory:
+pip install gemma==4.0.1
+#    For local development against the IN-REPO gemma source, install it editable
+#    from the repository root INSTEAD (its pyproject.toml lives there):
+#        pip install -e .          # from the repository root
+#        # equivalently, from inside backend/:  pip install -e ..
 
 # 6. Create your local .env and point GEMMA_WEIGHTS_PATH at the checkpoint.
 cp .env.example .env
 # then edit .env to set GEMMA_WEIGHTS_PATH (and CORS_ALLOW_ORIGINS).
 ```
 
-All pins are also captured in [`backend/requirements.txt`](./requirements.txt),
-so — again **from inside `backend/`** — you may instead run:
+All pins are also captured in [`backend/requirements.txt`](./requirements.txt).
+Because the manifest now uses the portable `gemma==4.0.1` pin (not a
+CWD-relative editable path), it resolves identically from **either** the
+repository root **or** this `backend/` directory:
 
 ```sh
+# from the repository root (matches CI manifest-closure checks):
+pip install -r backend/requirements.txt
+# ...or from inside backend/:
 pip install -r requirements.txt
 ```
 
-> **⚠️ Compatibility callout (primary dependency risk).** `jax-metal==0.1.1` is
-> compatible only with **older** jax/jaxlib (community-verified working
-> combinations are roughly **`0.4.35`–`0.5.0`**). Meanwhile **gemma 4.0.1 depends
-> on an *unpinned, modern* JAX** — the repository-root
+> **⚠️ Compatibility callout (primary dependency risk — RESOLVED).**
+> `jax-metal==0.1.1` is compatible only with **older** jax/jaxlib, and **gemma
+> 4.0.1 depends on an *unpinned, modern* JAX** — the repository-root
 > [`pyproject.toml`](../pyproject.toml) lists a **bare `jax`** with no upper
-> bound — so installing gemma in step 5 may pull or require a JAX newer than the
-> pinned `jaxlib==0.4.25`. If gemma fails to import or load under the pinned
-> `jaxlib`, the documented resolution is:
+> bound. The original `jaxlib==0.4.25` pin was **too old** for `jax-metal==0.1.1`
+> (the Metal PJRT plugin requires `jaxlib>=0.4.34`), which made the macOS-arm64
+> install unsatisfiable. This is now resolved by pinning **`jax==0.5.0` /
+> `jaxlib==0.5.0`** (step 3 above), per AAP §0.7.2:
 >
-> 1. Pin `jax`/`jaxlib` **up** to the **highest `jax-metal==0.1.1`-compatible**
->    version (approximately **`0.5.0`**); keep `jax` and `jaxlib` at **exactly**
->    the same version (they are released in lockstep).
-> 2. Optionally export `ENABLE_PJRT_COMPATIBILITY=1` to permit a newer jaxlib
->    than the strict minimum on the Metal PJRT plugin.
-> 3. **Escalate to the user before changing `jax-metal`** — **never** silently
->    upgrade it.
+> 1. `0.5.0` is the **highest `jax-metal==0.1.1`-compatible** version
+>    (community-verified working combination; `0.5.1+` break `jax-metal 0.1.1`).
+>    `jax` and `jaxlib` are released in lockstep — keep both at **exactly**
+>    `0.5.0`.
+> 2. `jax==0.5.0` satisfies gemma 4.0.1's bare `jax` dependency, so the whole
+>    backend set resolves on macOS arm64 / Python 3.12.
+> 3. If a future gemma release ever needs a JAX newer than `0.5.0`, optionally
+>    export `ENABLE_PJRT_COMPATIBILITY=1` and **escalate to the user before
+>    changing `jax-metal`** — **never** silently upgrade it.
 >
 > **No CUDA / `jax[cuda]` may ever appear in the dependency tree.** Only the
 > Apple-Silicon Metal JAX backend is permitted.

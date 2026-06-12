@@ -21,55 +21,76 @@
 #     here: jax-metal -> jaxlib -> fastapi -> uvicorn[standard] -> sse-starlette
 #     -> psutil -> gemma.
 #
-# Usage (run from INSIDE this `backend/` directory so the editable `-e ..` path
-# at the bottom resolves to the repository root that holds gemma's
-# pyproject.toml):
+# Usage — this manifest is CWD-independent and resolves from EITHER the
+# repository root or this `backend/` directory (the gemma requirement is the
+# portable PyPI pin `gemma==4.0.1`, not a CWD-relative editable path):
+#   # from the repository root (matches CI manifest-closure checks):
 #   python3.12 -m venv .venv && source .venv/bin/activate
+#   pip install -r backend/requirements.txt
+#   # ...or from inside backend/:
 #   pip install -r requirements.txt
+# For local development against the IN-REPO gemma source, install it editable
+# from the repository root INSTEAD of the PyPI pin (see the gemma section below).
 # =============================================================================
 
 # -----------------------------------------------------------------------------
 # 1) Metal JAX backend — INSTALL FIRST (Apple Silicon / macOS arm64 only)
 # -----------------------------------------------------------------------------
 jax-metal==0.1.1
-jaxlib==0.4.25
-# PRIMARY DEPENDENCY RISK — read before changing either pin above:
-#   `jax` and `jaxlib` are released in lockstep and their versions MUST match,
-#   so `jaxlib==0.4.25` implies `jax==0.4.25`. However, gemma 4.0.1 declares an
-#   *unpinned, modern* `jax` (verified: the repo-root pyproject.toml lists a
-#   bare `jax` with no upper bound), so installing gemma below may pull or need
-#   a JAX newer than 0.4.25.
-#   Documented resolution if that conflict occurs (AAP §0.7.2):
-#     1. Pin `jax`/`jaxlib` UP to the highest `jax-metal==0.1.1`-compatible
-#        version (community-verified to be approximately 0.4.35–0.5.0).
-#     2. Optionally export `ENABLE_PJRT_COMPATIBILITY=1` to permit a newer
-#        jaxlib than the strict minimum on the Metal PJRT plugin.
-#     3. ESCALATE to the user if gemma requires a JAX newer than jax-metal can
-#        support — NEVER silently upgrade `jax-metal` itself.
-#   The matching jax pin is documented (commented, not active) so it never
-#   forcibly conflicts with the table above; keep `jax` EXACTLY equal to
-#   jaxlib's version whenever you set it:
-# jax==0.4.25
+jaxlib==0.5.0
+jax==0.5.0
+# JAX/JAXLIB PIN RATIONALE — read before changing any of the three pins above:
+#   `jax-metal==0.1.1` (KEPT — never upgraded) does NOT work with the very old
+#   `jaxlib==0.4.25`: the Metal PJRT plugin requires `jaxlib>=0.4.34` / `jax>=0.4.34`
+#   (its IR ops were updated for jaxlib>=0.4.30), so pinning 0.4.25 made the
+#   macOS-arm64 install UNSATISFIABLE. Per AAP §0.7.2 the resolution is to pin
+#   `jax`/`jaxlib` UP to the highest `jax-metal==0.1.1`-compatible version — that
+#   version is 0.5.0 (community-verified working combination: jax-metal 0.1.1 +
+#   jax 0.5.0 + jaxlib 0.5.0; jax/jaxlib 0.5.1+ break jax-metal 0.1.1, so 0.5.0
+#   is the ceiling). `jax` and `jaxlib` are released in lockstep and MUST stay at
+#   the SAME version — keep both at 0.5.0.
+#   gemma 4.0.1 declares an *unpinned, modern* `jax` (the repo-root pyproject.toml
+#   lists a bare `jax` with no upper bound), which `jax==0.5.0` satisfies, so the
+#   full backend dependency set now resolves on macOS arm64 / Python 3.12.
+#   If a future gemma release ever requires a JAX newer than 0.5.0:
+#     1. Optionally export `ENABLE_PJRT_COMPATIBILITY=1` to let the Metal PJRT
+#        plugin run with a jaxlib beyond its strict minimum.
+#     2. ESCALATE to the user — NEVER silently upgrade `jax-metal` itself.
 
 # -----------------------------------------------------------------------------
 # 2) Web framework / SSE streaming / system metrics (exact pins, in order)
 # -----------------------------------------------------------------------------
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
-sse-starlette==2.1.0
-psutil==5.9.8
+# SECURITY PIN RATIONALE: the older `fastapi==0.111.0` constrained Starlette to
+# `<0.38.0`, which forced the vulnerable `starlette==0.37.2` (multipart DoS and
+# host-header path-poisoning advisories). `fastapi==0.136.3` requires
+# `starlette>=0.46.0`, resolving to a FIXED Starlette (>=1.3.0) with no known
+# advisories. `sse-starlette==3.4.4` (requires `starlette>=0.49.1`) and the
+# uvicorn/psutil pins below are the matching, conflict-free set verified with
+# `pip check` and the backend test suite. These are pure-Python / universal
+# wheels, so they are identical on macOS arm64 and Linux.
+fastapi==0.136.3
+uvicorn[standard]==0.49.0
+sse-starlette==3.4.4
+psutil==7.2.2
 
 # -----------------------------------------------------------------------------
 # 3) gemma — Gemma 3 4B model library (reused AS-IS; install LAST)
 # -----------------------------------------------------------------------------
-# Editable install of the IN-REPO gemma source (version 4.0.1) so the product
-# composes the *unmodified* sibling library and only instruments it. pip
-# resolves the `..` path relative to its working directory, so the documented
-# install commands MUST be run from inside this `backend/` folder; then `..` ==
-# the repository root, which holds gemma's pyproject.toml.
--e ..
-# Portable alternative (PyPI) — same version as the in-repo gemma.__version__:
-# gemma==4.0.1
+# Portable PyPI pin of gemma 4.0.1 — same version as the in-repo
+# `gemma.__version__ = "4.0.1"`, composed UNMODIFIED (only instrumented). This
+# pin is used (instead of a CWD-relative `-e ..`) so the manifest resolves
+# IDENTICALLY whether `pip install -r backend/requirements.txt` is run from the
+# repository ROOT (e.g. CI manifest-closure checks) or from inside `backend/`.
+# A bare editable path is intentionally NOT used here because pip resolves
+# `-e <path>` relative to the current working directory, so `-e ..` only worked
+# from inside `backend/` and silently pointed at the parent of the repo when run
+# from the root.
+gemma==4.0.1
+# Editable alternative for LOCAL DEVELOPMENT against the in-repo gemma source
+# (use INSTEAD of the pin above, run from the repository ROOT which holds
+# gemma's pyproject.toml):
+#   pip install -e .            # from the repository root
+#   # equivalently, from inside backend/:  pip install -e ..
 #
 # gemma is reused AS-IS and only instrumented — do NOT reimplement model
 # loading, tokenization, or the forward pass here. Its OWN transitive

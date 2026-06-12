@@ -136,14 +136,18 @@ python3.12 -m venv .venv
 source .venv/bin/activate
 
 # 2. Install the Metal backend FIRST (order matters — version-lock sensitive).
+#    jax/jaxlib 0.5.0 is the highest jax-metal==0.1.1-compatible version (0.4.25
+#    was too old: the Metal PJRT plugin needs jaxlib>=0.4.34). Keep them equal.
 pip install jax-metal==0.1.1
-pip install jaxlib==0.4.25
+pip install jaxlib==0.5.0 jax==0.5.0
 
 # 3. Install the web stack (quote the bracketed extra so zsh does not glob it).
-pip install fastapi==0.111.0 'uvicorn[standard]==0.29.0' sse-starlette==2.1.0 psutil==5.9.8
+#    fastapi 0.136.3 pulls a FIXED Starlette; the old 0.111.0 forced the
+#    vulnerable starlette 0.37.2.
+pip install fastapi==0.136.3 'uvicorn[standard]==0.49.0' sse-starlette==3.4.4 psutil==7.2.2
 
-# 4. Install gemma — used AS-IS (editable local install from the repo root).
-pip install -e .          # or, equivalently: pip install gemma==4.0.1
+# 4. Install gemma — used AS-IS (portable PyPI pin, resolves from any directory).
+pip install gemma==4.0.1   # or, for in-repo dev: pip install -e . (from repo root)
 
 # 5. Point GEMMA_WEIGHTS_PATH at your local Gemma 3 4B Orbax checkpoint.
 export GEMMA_WEIGHTS_PATH="/path/to/gemma-3-4b/checkpoint"
@@ -158,18 +162,21 @@ and the environment template lives in
 [`backend/.env.example`](./backend/.env.example). For the full per-component deep
 dive, see [`backend/README.md`](./backend/README.md).
 
-> **⚠️ Compatibility warning (primary dependency risk).** `jax-metal==0.1.1` is
-> only compatible with **older** jax/jaxlib (community-verified working
-> combinations roughly **0.4.35–0.5.0**), while **gemma 4.0.1 depends on an
-> *unpinned, modern* JAX**. If gemma fails to import or load under the pinned
-> `jaxlib`, the documented resolution is:
+> **⚠️ Compatibility warning (primary dependency risk — RESOLVED).**
+> `jax-metal==0.1.1` is only compatible with **older** jax/jaxlib, while **gemma
+> 4.0.1 depends on an *unpinned, modern* JAX**. The original `jaxlib==0.4.25` pin
+> was **too old** for `jax-metal==0.1.1` (the Metal PJRT plugin requires
+> `jaxlib>=0.4.34`), making the macOS-arm64 install unsatisfiable. Per AAP §0.7.2
+> this is resolved by pinning **`jax==0.5.0` / `jaxlib==0.5.0`** (step 2 above):
 >
-> 1. Pin jax/jaxlib to the **highest** `jax-metal==0.1.1`-compatible version
->    (approximately **0.5.0**).
-> 2. Optionally set `ENABLE_PJRT_COMPATIBILITY=1` to permit a newer jaxlib than
->    the strict minimum.
-> 3. **Escalate to the user before changing `jax-metal`** — never silently
->    upgrade it.
+> 1. `0.5.0` is the **highest** `jax-metal==0.1.1`-compatible version
+>    (community-verified; `0.5.1+` break `jax-metal 0.1.1`). Keep `jax` and
+>    `jaxlib` equal — they are released in lockstep.
+> 2. `jax==0.5.0` satisfies gemma 4.0.1's bare `jax` dependency, so the full
+>    backend set resolves on macOS arm64 / Python 3.12.
+> 3. If a future gemma release ever needs a JAX newer than `0.5.0`, optionally
+>    set `ENABLE_PJRT_COMPATIBILITY=1` and **escalate to the user before changing
+>    `jax-metal`** — never silently upgrade it.
 >
 > **No CUDA / `jax[cuda]` may ever appear in the dependency tree.** Only the
 > Apple-Silicon Metal JAX backend is permitted.
@@ -225,16 +232,43 @@ clickable **Railway** URL using [`frontend/railway.json`](./frontend/railway.jso
    HTTPS URL) and `NEXT_PUBLIC_PASSWORD` in the Railway project.
 3. **Deploy.**
 
-> **Deployment status: NOT YET DEPLOYED — no live Railway URL has been
-> provisioned yet.**
-> The frontend is fully deployment-ready: [`frontend/railway.json`](./frontend/railway.json)
-> configures the Railway build/deploy and [`frontend/README.md`](./frontend/README.md)
-> documents the full procedure. Provisioning a live URL requires a Railway
-> account and is completed by following the three steps above. **Once deployed,
-> record the live, clickable Railway URL on the line below** so this document
-> always links to the running deployment:
+> **Deployment status: BUILD- AND RUNTIME-VERIFIED, READY TO PUBLISH.**
+> The Railway deployment artifact has been verified end to end:
+> - `npm run build` (the Railway `buildCommand`) compiles cleanly with
+>   **Next.js 16** — TypeScript passes and the static pages are generated.
+> - `npm run start` (the Railway `startCommand`) serves the app on the
+>   container `PORT`, and a local run confirmed it renders the **password gate**
+>   (the dashboard stays hidden until the shared password is entered) using the
+>   exact dark palette.
+> - [`frontend/railway.json`](./frontend/railway.json) is valid (NIXPACKS
+>   builder, `npm install && npm run build` build, `npm run start` start) and
+>   [`package.json`](./frontend/package.json) declares `engines.node >= 20.9.0`.
 >
-> _Live URL: (pending deployment — follow the three steps above to provision)_
+> **Publishing the live URL is the final operator step and requires
+> credentials this repository does not (and must not) contain** — a **Railway
+> account/token** to host the frontend and a reachable backend (your local
+> Apple-Silicon Mac exposed via **ngrok**) for it to stream telemetry. Run the
+> publish from a machine that holds those credentials:
+>
+> ```sh
+> # one-time: authenticate and link the Railway project
+> npm i -g @railway/cli      # or: brew install railway
+> railway login
+> railway link               # select/create the project; service root = frontend/
+>
+> # set the build-time public env vars, then deploy
+> railway variables --set NEXT_PUBLIC_API_URL="https://<your-ngrok-id>.ngrok-free.app" \
+>                    --set NEXT_PUBLIC_PASSWORD="<your-shared-password>"
+> railway up                 # builds with railway.json and returns the live URL
+> ```
+>
+> (Equivalently, use the Railway dashboard: connect the repo, point the service
+> at `frontend/`, set the same two variables, and Deploy.)
+>
+> **Record the live, clickable Railway URL on the line below once published**
+> so this document always links to the running deployment:
+>
+> _Live URL: `https://<your-app>.up.railway.app`  (replace with the real URL printed by `railway up` / shown in the Railway dashboard)_
 
 Because `NEXT_PUBLIC_API_URL` is a **build-time** variable in Next.js, any change
 to the backend's ngrok URL requires a Railway **redeploy** — see the
