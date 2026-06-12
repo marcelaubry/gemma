@@ -387,7 +387,7 @@ The dashboard surfaces two resilience messages (reproduced here verbatim):
 - On a `/health` timeout or error, the UI shows:
   > Backend offline — start the local server and update the ngrok URL in Railway
 - If `/analyze` does not begin streaming within 5 seconds, the UI shows:
-  > Model warming up, this may take 20–40 seconds on first run.
+  > Model warming up, this may take 20–40 seconds on first run
 
 ### Common issues
 
