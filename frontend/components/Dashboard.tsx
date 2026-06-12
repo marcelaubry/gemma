@@ -66,15 +66,43 @@ export default function Dashboard() {
     }
   };
 
-  const banners: { key: string; text: string; color: string }[] = [];
+  // Resilience/error banners. Each banner carries a SEPARATE text color and
+  // border color. The border may use the saturated red #ef4444 (a non-text UI
+  // boundary — 4.24:1 on the #1e2130 panel, comfortably above the WCAG 1.4.11
+  // 3:1 threshold for UI components), while the banner TEXT uses the lighter
+  // #f87171 (5.77:1 on #1e2130) so the copy clears WCAG 2.x AA 4.5:1 for normal
+  // text. Both reds are implementation-chosen (NOT part of the immutable AAP
+  // palette in §0.1.2/§0.7.1), so tuning them for contrast is spec-compliant.
+  const banners: {
+    key: string;
+    text: string;
+    textColor: string;
+    borderColor: string;
+  }[] = [];
   if (health === "offline") {
-    banners.push({ key: "offline", text: BACKEND_OFFLINE_MESSAGE, color: "#ef4444" });
+    banners.push({
+      key: "offline",
+      text: BACKEND_OFFLINE_MESSAGE,
+      textColor: "#f87171",
+      borderColor: "#ef4444",
+    });
   }
   if (warming) {
-    banners.push({ key: "warming", text: MODEL_WARMING_MESSAGE, color: PALETTE.counter });
+    // Amber (#f59e0b) is 7.43:1 on the panel, so text and border share it.
+    banners.push({
+      key: "warming",
+      text: MODEL_WARMING_MESSAGE,
+      textColor: PALETTE.counter,
+      borderColor: PALETTE.counter,
+    });
   }
   if (error !== null) {
-    banners.push({ key: "error", text: error, color: "#ef4444" });
+    banners.push({
+      key: "error",
+      text: error,
+      textColor: "#f87171",
+      borderColor: "#ef4444",
+    });
   }
 
   return (
@@ -93,8 +121,17 @@ export default function Dashboard() {
         <h1 style={{ margin: 0, fontSize: 22 }}>
           Gemma Compute Monitor
         </h1>
-        <p style={{ margin: "4px 0 0", fontSize: 13, opacity: 0.7 }}>
-          Per-layer telemetry for Gemma 3 4B ·{" "}
+        {/* The descriptive lead-in is intentionally muted (opacity 0.7), but the
+           opacity is scoped to that text ONLY — applying it to the whole <p>
+           previously dimmed the palette-colored health-status word too, dropping
+           the healthy green (#10b981) to an effective ~#108761 ≈ 4.18:1 (below
+           WCAG AA 4.5:1). Keeping the status span at full opacity renders the
+           immutable palette colors at full strength: healthy #10b981 ≈ 7.44:1
+           and the offline counter #f59e0b ≈ 7.43:1, both comfortably ≥ AA. */}
+        <p style={{ margin: "4px 0 0", fontSize: 13 }}>
+          <span style={{ opacity: 0.7 }}>
+            Per-layer telemetry for Gemma 3 4B ·{" "}
+          </span>
           <span
             data-testid="health-status"
             style={{ color: health === "ready" ? PALETTE.healthy : PALETTE.counter }}
@@ -139,8 +176,8 @@ export default function Dashboard() {
           role="alert"
           style={{
             background: PALETTE.panel,
-            border: `1px solid ${b.color}`,
-            color: b.color,
+            border: `1px solid ${b.borderColor}`,
+            color: b.textColor,
             borderRadius: 8,
             padding: "10px 12px",
             marginBottom: 12,

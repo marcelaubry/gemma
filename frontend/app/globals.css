@@ -60,8 +60,12 @@ body {
  *      focus indicator (accessibility) and explicit interactive states.
  *
  * Dark-only; no new palette values and no light-mode branch are introduced.
- * Neutral text (#e5e7eb) and the error color (#ef4444) are the only non-token
- * colors, matching the neutrals already used by `body` and the gate.
+ * The only non-token colors are the neutral text (#e5e7eb), the error TEXT
+ * color (#f87171 — 5.77:1 on the #1e2130 panel, meeting WCAG 2.x AA 4.5:1 for
+ * normal text), and the error BORDER red (#ef4444 — a non-text UI boundary at
+ * 4.24:1, above the WCAG 1.4.11 3:1 threshold). These match the neutrals/reds
+ * used by `body` and the Dashboard resilience banners; none is part of the
+ * immutable AAP palette.
  * ------------------------------------------------------------------------- */
 
 .gcm-gate {
@@ -123,9 +127,24 @@ body {
 .gcm-gate__error {
   margin: 0;
   font-size: 13px;
-  color: #ef4444;
+  /* #f87171 (5.77:1 on the #1e2130 card) clears WCAG AA 4.5:1 for this 13px
+     error text; the previous #ef4444 was only 4.24:1. Implementation-chosen
+     color (not a mandated palette token); matches the Dashboard error-banner
+     text color for a consistent error treatment across the app. */
+  color: #f87171;
 }
 
+/*
+ * ACCEPTED (documented) contrast note — applies to BOTH primary buttons
+ * (.gcm-gate__button and .gcm-dash__button): white (#ffffff) text on the
+ * primary accent (--accent-primary: #6366f1) measures 4.47:1 — just 0.03 below
+ * the WCAG AA 4.5:1 normal-text threshold, but ABOVE the 3:1 UI-component
+ * threshold. #6366f1 is an IMMUTABLE mandated palette value (AAP §0.1.2 /
+ * §0.7.1) and white is already the maximum-contrast text against it, so this
+ * ratio is spec-inherent and cannot be improved without violating the
+ * non-negotiable palette. It is therefore accepted as-is (QA FINAL-9 Issue 3,
+ * INFO).
+ */
 .gcm-gate__button {
   padding: 10px 12px;
   font-size: 14px;
@@ -197,6 +216,8 @@ body {
   outline-offset: 2px;
 }
 
+/* White on --accent-primary #6366f1 = 4.47:1: accepted, palette-forced — see
+   the documented contrast note above .gcm-gate__button (QA FINAL-9 Issue 3). */
 .gcm-dash__button {
   padding: 10px 18px;
   font-size: 14px;

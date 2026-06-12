@@ -105,13 +105,20 @@ export default function LayerActivityBarChart({
         })}
       </div>
 
+      {/*
+        L1…Ln endpoint axis labels. opacity 0.7 (not 0.5) makes the effective
+        label color (#e5e7eb blended over the #1e2130 panel) ≈ #a9acb3 = 7.02:1,
+        clearing WCAG 2.x AA 4.5:1 for normal text (the prior 0.5 was 4.29:1).
+        fontSize is also raised 8 → 10 for legibility of these small endpoint
+        labels. The bar opacities (active 1 / prior 0.4) are independent.
+      */}
       <div
         style={{
           display: "flex",
           gap: 2,
           marginTop: 4,
-          fontSize: 8,
-          opacity: 0.5,
+          fontSize: 10,
+          opacity: 0.7,
           justifyContent: "space-between",
         }}
       >
