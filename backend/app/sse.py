@@ -44,7 +44,7 @@ Per-token timing reuses gemma's own sampler as-is -- ``gm.text.Sampler`` with
 ``stream=True`` (genuine token-by-token streaming) -- and ``gemma`` is imported
 lazily inside the helper so importing this module never triggers a JAX/Metal
 init. No model is loaded or reloaded here: the loaded singleton is obtained from
-:mod:`app.model_loader`. No CUDA / NVIDIA backend is referenced anywhere.
+:mod:`app.model_loader`. No non-Metal backend is referenced anywhere.
 """
 
 from __future__ import annotations
@@ -257,9 +257,11 @@ async def analyze_event_stream(
   The event loop is never blocked by JAX: the layer harness runs on the worker
   thread and the sampler runs in a thread executor. On client disconnect the
   worker thread is signalled to stop (``stop_event``) at the next layer
-  boundary, so no work is orphaned. If the layer harness raises, the error is
-  logged and the stream still terminates gracefully by emitting the final event
-  (unless the client has already disconnected).
+  boundary, so no work is orphaned. If the layer harness raises, the partial
+  pass is **not** reported as a success: the error is logged and the stream is
+  aborted by propagating the failure, so no success-shaped final event is ever
+  emitted for an incomplete run (the worker thread is still stopped and the
+  single-flight lock is still released as the exception propagates).
 
   Args:
     request: The Starlette/FastAPI request, polled via
@@ -331,8 +333,9 @@ async def analyze_event_stream(
       if item is _QUEUE_SENTINEL:
         break
       if isinstance(item, Exception):
-        # The harness failed; stop streaming layers but still close the stream
-        # gracefully with a final event below.
+        # The harness failed; stop streaming layers and record the error. The
+        # stream is then ABORTED after the loop (no success-shaped final event
+        # is emitted) -- see the ``layer_error`` handling below.
         layer_error = item
         logger.error("Layer harness raised; stopping layers: %s", item)
         break
@@ -363,7 +366,22 @@ async def analyze_event_stream(
   if client_disconnected:
     return
 
-  # Final phase: per-token timing. Always attempt unless the client left.
+  # A layer-harness failure must NOT be reported as a successful completion.
+  # Abort the stream by propagating the error instead of running the sampler and
+  # emitting a success-shaped ``{per_token_ms, done: true}`` final event, so an
+  # incomplete layer pass (fewer than ``config.num_layers`` events) is never
+  # mistaken for success -- the client observes a failed (truncated) stream.
+  # Generator cleanup (``stop_event`` above) has already run, and app.main's
+  # ``body_iterator`` wrapper still releases the single-flight lock as this
+  # exception propagates, so neither the worker thread nor the lock leaks.
+  if layer_error is not None:
+    raise RuntimeError(
+        f"Layer instrumentation failed after {emitted} of "
+        f"{config.num_layers} layer event(s); aborting the SSE "
+        "stream without a final event."
+    ) from layer_error
+
+  # Final phase: per-token timing. Reached ONLY after a complete layer pass.
   if await request.is_disconnected():
     logger.info("Client disconnected before final event; skipping it.")
     return
@@ -378,11 +396,6 @@ async def analyze_event_stream(
       "event": _FINAL_EVENT_NAME,
       "data": final_event.model_dump_json(),
   }
-  if layer_error is not None:
-    logger.warning(
-        "Emitted final event despite an earlier layer error: %s",
-        layer_error,
-    )
 
 
 # -----------------------------------------------------------------------------

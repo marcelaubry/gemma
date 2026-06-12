@@ -114,6 +114,18 @@ class FinalEvent(BaseModel):
     can never be ``false``."""
 
 
+# Maximum accepted ``prompt`` length, in characters -- an explicit input bound
+# (CWE-20 / resource-exhaustion guard). The single local Gemma 3 4B model runs
+# one full-prompt forward pass plus a short decode per request, so an unbounded
+# prompt could drive excessive CPU/GPU/memory use or an out-of-memory failure.
+# A character cap is a strict upper bound on the SentencePiece token count (a
+# token spans at least one character), so it also bounds the tokens fed to the
+# instrumented forward pass. ``8192`` accommodates realistic multi-thousand-word
+# prompts while rejecting pathological payloads BEFORE any tokenization or JAX
+# work runs (Pydantic returns a sanitized HTTP 422 on overflow).
+MAX_PROMPT_CHARS: int = 8192
+
+
 class AnalyzeRequest(BaseModel):
   """Request body for ``POST /analyze``.
 
@@ -122,11 +134,16 @@ class AnalyzeRequest(BaseModel):
       { prompt: string }
   """
 
-  prompt: str = Field(..., min_length=1)
-  """The user prompt to analyze. Required and non-empty: ``min_length=1``
-    rejects an empty string so the instrumented forward pass always receives
-    real input. The serialized key remains exactly ``prompt`` and the value
-    stays a required string."""
+  prompt: str = Field(..., min_length=1, max_length=MAX_PROMPT_CHARS)
+  """The user prompt to analyze. Required, non-empty (``min_length=1`` rejects
+    an empty string), and bounded to at most :data:`MAX_PROMPT_CHARS`
+    characters (``max_length``) so an oversized prompt is rejected with a
+    sanitized HTTP 422 by request validation BEFORE any tokenization or
+    instrumented forward pass runs -- a CWE-20 / resource-exhaustion guard for
+    the single local model. The serialized key remains exactly ``prompt`` and
+    the value stays a required string, so the immutable ``{ prompt: string }``
+    wire contract (AAP §0.1.2) is preserved: ``max_length`` constrains only the
+    accepted size, never the field name, type, or shape."""
 
 
 class HealthResponse(BaseModel):

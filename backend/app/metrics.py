@@ -176,6 +176,18 @@ def gpu_pct() -> float:
         timeout=POWERMETRICS_TIMEOUT_S,
         check=False,
     )
+    # ANY failure collapses to the documented 0.0 fallback (AAP §0.7.1) -- this
+    # explicitly INCLUDES a non-zero exit code (e.g. powermetrics refusing to
+    # run without root, or an unsupported sampler on this host). Treat a
+    # non-zero return code as a failure and fall back BEFORE attempting to parse
+    # stdout, so partial/error output is never mistaken for a real GPU reading.
+    if completed.returncode != 0:
+      logger.debug(
+          "powermetrics exited with non-zero status %s; using fallback %.1f",
+          completed.returncode,
+          GPU_FALLBACK,
+      )
+      return GPU_FALLBACK
     match = _GPU_RESIDENCY_RE.search(completed.stdout or "")
     if match is not None:
       return float(match.group(1))

@@ -57,7 +57,7 @@ Design constraints
   JAX/Metal initialization and never loads the model; the load happens only in
   the lifespan hook at server startup. The cheap siblings
   (``config``, ``model_loader``, ``schemas``) are imported normally.
-* **No NVIDIA / non-Metal GPU backend** is referenced anywhere (the Apple
+* **No non-Metal GPU backend** is referenced anywhere (the Apple
   Silicon Metal JAX backend is the only one targeted, per the AAP).
 * **No persistent state.** Telemetry is ephemeral; nothing is written to disk
   or a database. The only process state is the in-memory loaded model held by

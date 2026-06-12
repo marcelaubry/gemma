@@ -60,7 +60,7 @@ Design notes
   state is the in-memory loaded model held by the :data:`state` singleton.
 * **No GPU vendor flags.** This module sets no device flags; it relies entirely
   on the JAX backend configured by the environment (Metal on the Apple Silicon
-  target) and never enables or imports any NVIDIA compute backend.
+  target) and never enables or imports any non-Metal compute backend.
 """
 
 from __future__ import annotations
