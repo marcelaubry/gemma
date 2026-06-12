@@ -1,51 +1,76 @@
-# Gemma Compute Monitor - Backend dependencies
-# Baseline established by setup agent on Linux x86_64 (Ubuntu 25.10), Python 3.13.7.
+# =============================================================================
+# Gemma Compute Monitor — backend Python dependencies
+# =============================================================================
+# Project        : Gemma Compute Monitor backend (FastAPI telemetry server)
+# Python         : >= 3.12   (governed by gemma's `requires-python = ">=3.12"`,
+#                  verified in the repo-root pyproject.toml — do NOT assume 3.10;
+#                  gemma 4.0.1 will not install on anything below Python 3.12)
+# Target platform: Apple Silicon (M-series, macOS 14+) with the JAX **Metal**
+#                  backend ONLY. This manifest is the production install recipe
+#                  for that Mac; the Metal wheels below are macOS/arm64-only and
+#                  have no Linux/Windows distribution.
 #
-# =====================================================================
-# PLATFORM NOTE - jax-metal (Apple Silicon ONLY; NOT installable here)
-# =====================================================================
-# The product targets a MacBook Pro (Apple Silicon) with the JAX Metal
-# backend. The AAP-pinned jax-metal==0.1.1 + jaxlib==0.4.25 have NO Linux
-# x86_64 distribution ("No matching distribution found") and CANNOT be
-# installed on this Linux baseline/CI host.
-#   * On Apple Silicon (macOS 14+): install jax-metal==0.1.1 and its matching
-#     jaxlib FIRST, before the packages below, and NEVER upgrade jax-metal
-#     without explicit user approval (AAP 0.7.1).
-#   * On Linux/CI: JAX resolves to the modern CPU build (jax/jaxlib 0.10.1)
-#     pulled in transitively by gemma 4.0.1 - CPU-only, NO CUDA (verified
-#     jax.default_backend()=="cpu").
+# HARD CONSTRAINTS (AAP §0.3.1 / §0.7 — binding on this file):
+#   * Apple Silicon + JAX Metal ONLY. NO CUDA / jax[cuda]: never add CUDA
+#     jaxlib wheels or nvidia-* packages. Only the Metal backend is permitted.
+#   * NEVER upgrade `jax-metal` beyond 0.1.1 without explicit user approval.
+#   * Install order is SIGNIFICANT — the Metal JAX backend is version-lock
+#     sensitive. Install the requirements top-to-bottom in the order written
+#     here: jax-metal -> jaxlib -> fastapi -> uvicorn[standard] -> sse-starlette
+#     -> psutil -> gemma.
 #
-# =====================================================================
-# VERSION-OVERRIDE NOTE (resolved against gemma 4.0.1's modern stack)
-# =====================================================================
-# gemma 4.0.1 + kauldron force a modern stack (starlette 1.3.0, pydantic
-# 2.13.x, modern jax). The AAP's early-2024 web pins are incompatible with it
-# (fastapi==0.111.0 pins starlette<0.38, which would break fastmcp/mcp). They
-# are resolved UP to the nearest gemma-compatible versions, mirroring the
-# documented JAX version tension (AAP 0.7.2). Originals shown for traceability.
+# Usage (run from INSIDE this `backend/` directory so the editable `-e ..` path
+# at the bottom resolves to the repository root that holds gemma's
+# pyproject.toml):
+#   python3.12 -m venv .venv && source .venv/bin/activate
+#   pip install -r requirements.txt
+# =============================================================================
 
-# --- Apple-Silicon-only (install first on macOS; unavailable on Linux) -------
-# jax-metal==0.1.1   ; sys_platform == "darwin" and platform_machine == "arm64"
-# jaxlib==0.4.25     ; sys_platform == "darwin" and platform_machine == "arm64"
+# -----------------------------------------------------------------------------
+# 1) Metal JAX backend — INSTALL FIRST (Apple Silicon / macOS arm64 only)
+# -----------------------------------------------------------------------------
+jax-metal==0.1.1
+jaxlib==0.4.25
+# PRIMARY DEPENDENCY RISK — read before changing either pin above:
+#   `jax` and `jaxlib` are released in lockstep and their versions MUST match,
+#   so `jaxlib==0.4.25` implies `jax==0.4.25`. However, gemma 4.0.1 declares an
+#   *unpinned, modern* `jax` (verified: the repo-root pyproject.toml lists a
+#   bare `jax` with no upper bound), so installing gemma below may pull or need
+#   a JAX newer than 0.4.25.
+#   Documented resolution if that conflict occurs (AAP §0.7.2):
+#     1. Pin `jax`/`jaxlib` UP to the highest `jax-metal==0.1.1`-compatible
+#        version (community-verified to be approximately 0.4.35–0.5.0).
+#     2. Optionally export `ENABLE_PJRT_COMPATIBILITY=1` to permit a newer
+#        jaxlib than the strict minimum on the Metal PJRT plugin.
+#     3. ESCALATE to the user if gemma requires a JAX newer than jax-metal can
+#        support — NEVER silently upgrade `jax-metal` itself.
+#   The matching jax pin is documented (commented, not active) so it never
+#   forcibly conflicts with the table above; keep `jax` EXACTLY equal to
+#   jaxlib's version whenever you set it:
+# jax==0.4.25
 
-# --- Web framework / SSE / system metrics (gemma-4.0.1-compatible) -----------
-fastapi==0.136.3            # AAP pin 0.111.0 overridden (needs starlette>=0.46)
-uvicorn[standard]==0.49.0   # AAP pin 0.29.0 overridden
-sse-starlette==3.4.4        # AAP pin 2.1.0 overridden
-psutil==7.2.2               # AAP pin 5.9.8 overridden
+# -----------------------------------------------------------------------------
+# 2) Web framework / SSE streaming / system metrics (exact pins, in order)
+# -----------------------------------------------------------------------------
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+sse-starlette==2.1.0
+psutil==5.9.8
 
-# --- Model library (Gemma) ---------------------------------------------------
-# Installed EDITABLE from the repository root (one level up from backend/):
-#   pip install -e ..
-# Reproduce the full baseline (run from the repository root) with:
-#   python3 -m venv .venv && source .venv/bin/activate
-#   pip install git+https://github.com/google/etils \
-#               git+https://github.com/google-research/kauldron \
-#               git+https://github.com/google-deepmind/dialog
-#   pip install -e ".[dev]"
-#   pip install -r backend/requirements.txt
+# -----------------------------------------------------------------------------
+# 3) gemma — Gemma 3 4B model library (reused AS-IS; install LAST)
+# -----------------------------------------------------------------------------
+# Editable install of the IN-REPO gemma source (version 4.0.1) so the product
+# composes the *unmodified* sibling library and only instruments it. pip
+# resolves the `..` path relative to its working directory, so the documented
+# install commands MUST be run from inside this `backend/` folder; then `..` ==
+# the repository root, which holds gemma's pyproject.toml.
+-e ..
+# Portable alternative (PyPI) — same version as the in-repo gemma.__version__:
+# gemma==4.0.1
 #
-# NOTE: gemma is NOT listed as a flat '-e ..' requirement here because (a) pip
-# resolves editable paths in a requirements file relative to the CWD (fragile),
-# and (b) gemma 4.0.1 needs the git-deps preamble above installed FIRST. Install
-# gemma editable separately with the sequence shown above.
+# gemma is reused AS-IS and only instrumented — do NOT reimplement model
+# loading, tokenization, or the forward pass here. Its OWN transitive
+# dependencies (flax, orbax-checkpoint, sentencepiece, kauldron, einops, etils,
+# grain, treescope, absl-py, numpy, jaxtyping, dialog, fastmcp, mcp) are pulled
+# in automatically by the install above and MUST NOT be pinned or edited here.
