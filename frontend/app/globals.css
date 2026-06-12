@@ -1,0 +1,44 @@
+/**
+ * Gemma Compute Monitor — global styles + NON-NEGOTIABLE palette tokens.
+ *
+ * Dark-only theme. There is intentionally NO light mode and NO
+ * @media (prefers-color-scheme: light) branch — the dashboard is dark only.
+ * The seven palette values below are verbatim from the product spec
+ * (AAP §0.1.2) and MUST NOT be changed.
+ */
+
+:root {
+  /* Non-negotiable palette (verbatim, immutable). */
+  --bg: #0f1117;               /* Background */
+  --panel: #1e2130;            /* Panels */
+  --border: #2d3348;           /* Borders */
+  --accent-primary: #6366f1;   /* Primary accent */
+  --accent-secondary: #8b5cf6; /* Secondary accent */
+  --healthy: #10b981;          /* Healthy / active */
+  --layer-counter: #f59e0b;    /* Layer counter */
+
+  /* Tell the user agent this is a dark UI (native controls, scrollbars). */
+  color-scheme: dark;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: #e5e7eb;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  min-height: 100vh;
+}
