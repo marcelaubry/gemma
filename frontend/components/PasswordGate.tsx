@@ -42,16 +42,12 @@ import {
   type ReactNode,
 } from "react";
 
-// Fixed, dark-only palette (AAP §0.1.2). These are the only brand colors used
-// here; neutral text (#e5e7eb) and the error color (#ef4444) are the sole
-// additional neutrals. No light mode, no third-party styling library.
-const PALETTE = {
-  background: "#0f1117",
-  panel: "#1e2130",
-  border: "#2d3348",
-  primary: "#6366f1",
-  counter: "#f59e0b",
-} as const;
+// All styling lives in `frontend/app/globals.css` under the `.gcm-gate*`
+// classes (dark-only, built entirely from the palette CSS custom properties).
+// Keeping styles there — rather than as inline React `style` objects — removes
+// duplicated palette values from this component and lets the gate express
+// keyboard-focus, hover, active, and disabled states, which inline style
+// objects cannot represent.
 
 // localStorage key under which the accepted password is persisted.
 const STORAGE_KEY = "gcm-auth";
@@ -104,36 +100,10 @@ export default function PasswordGate({ children }: { children: ReactNode }) {
   }
 
   return (
-    <div
-      data-testid="password-gate"
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: PALETTE.background,
-        color: "#e5e7eb",
-        fontFamily: "system-ui, sans-serif",
-      }}
-    >
-      <form
-        onSubmit={handleSubmit}
-        style={{
-          background: PALETTE.panel,
-          border: `1px solid ${PALETTE.border}`,
-          borderRadius: 12,
-          padding: 32,
-          width: 360,
-          maxWidth: "90vw",
-          display: "flex",
-          flexDirection: "column",
-          gap: 16,
-        }}
-      >
-        <h1 style={{ margin: 0, fontSize: 20, color: PALETTE.counter }}>
-          Gemma Compute Monitor
-        </h1>
-        <label htmlFor="gcm-password" style={{ fontSize: 13, opacity: 0.8 }}>
+    <div data-testid="password-gate" className="gcm-gate">
+      <form onSubmit={handleSubmit} className="gcm-gate__card">
+        <h1 className="gcm-gate__title">Gemma Compute Monitor</h1>
+        <label htmlFor="gcm-password" className="gcm-gate__label">
           Enter access password
         </label>
         <input
@@ -144,38 +114,18 @@ export default function PasswordGate({ children }: { children: ReactNode }) {
           placeholder="Password"
           value={value}
           autoComplete="current-password"
+          className="gcm-gate__input"
           onChange={(e: ChangeEvent<HTMLInputElement>) => {
             setValue(e.target.value);
             if (error) setError(false);
           }}
-          style={{
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: `1px solid ${PALETTE.border}`,
-            background: PALETTE.background,
-            color: "#e5e7eb",
-            fontSize: 14,
-            outline: "none",
-          }}
         />
         {error ? (
-          <p role="alert" style={{ margin: 0, color: "#ef4444", fontSize: 13 }}>
+          <p role="alert" className="gcm-gate__error">
             Incorrect password
           </p>
         ) : null}
-        <button
-          type="submit"
-          style={{
-            padding: "10px 12px",
-            borderRadius: 8,
-            border: "none",
-            background: PALETTE.primary,
-            color: "#ffffff",
-            fontSize: 14,
-            fontWeight: 600,
-            cursor: "pointer",
-          }}
-        >
+        <button type="submit" className="gcm-gate__button">
           Unlock
         </button>
       </form>

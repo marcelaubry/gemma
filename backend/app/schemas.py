@@ -147,10 +147,14 @@ class HealthResponse(BaseModel):
     loaded, otherwise ``"loading"``. Constrained to exactly these two string
     values."""
 
-  model: str = "gemma-3-4b"
-  """Static model identifier. Defaults to the immutable literal
-    ``"gemma-3-4b"`` (mirrors ``config.MODEL_ID``); the serialized value must be
-    exactly ``gemma-3-4b``."""
+  model: Literal["gemma-3-4b"] = "gemma-3-4b"
+  """Static model identifier. Constrained to the immutable literal
+    ``"gemma-3-4b"`` (mirrors ``config.MODEL_ID``) via ``Literal`` so Pydantic
+    *rejects* any other value — e.g. ``HealthResponse(status="ready",
+    model="wrong")`` raises ``ValidationError`` rather than silently accepting
+    drift. The default keeps the field optional for callers while the type
+    guarantees the serialized value is always exactly ``gemma-3-4b``, enforcing
+    the immutable ``GET /health`` contract (AAP §0.1.2 / §0.7.1) byte-for-byte."""
 
 
 # Explicit public API. Listing the four contract models keeps wildcard imports

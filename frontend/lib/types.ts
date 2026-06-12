@@ -47,12 +47,15 @@ export interface AnalyzeRequest {
 }
 
 /**
- * GET /health response. `model` is the literal "gemma-3-4b" on the wire, kept
- * as `string` here so the UI does not over-narrow.
+ * GET /health response. `model` is the literal "gemma-3-4b" on the wire and is
+ * typed as that exact string literal here (never widened to `string`) so this
+ * TypeScript mirror matches the immutable contract byte-for-byte and stays in
+ * lockstep with the Pydantic `Literal["gemma-3-4b"]` in
+ * `backend/app/schemas.py` (AAP §0.1.2 / §0.7.1 — immutable contracts).
  */
 export interface HealthResponse {
   status: "ready" | "loading";
-  model: string;
+  model: "gemma-3-4b";
 }
 
 /**

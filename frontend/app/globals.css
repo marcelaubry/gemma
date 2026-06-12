@@ -42,3 +42,117 @@ body {
   -moz-osx-font-smoothing: grayscale;
   min-height: 100vh;
 }
+
+/* ---------------------------------------------------------------------------
+ * PasswordGate (frontend/components/PasswordGate.tsx) — single-password access
+ * gate.
+ *
+ * These styles live here (rather than as inline React `style` objects in the
+ * component) for two reasons mandated by the code review:
+ *   1. Maintainability — every value reuses the palette TOKENS above
+ *      (var(--bg), var(--panel), var(--border), var(--accent-primary),
+ *      var(--accent-secondary), var(--layer-counter)) instead of duplicating
+ *      hard-coded hex strings, so the gate can never drift from the global
+ *      palette.
+ *   2. Interactive + keyboard-focus states — `:hover`, `:active`,
+ *      `:focus-visible`, and `:disabled` CANNOT be expressed with inline React
+ *      style objects; defining them here gives the gate a visible keyboard
+ *      focus indicator (accessibility) and explicit interactive states.
+ *
+ * Dark-only; no new palette values and no light-mode branch are introduced.
+ * Neutral text (#e5e7eb) and the error color (#ef4444) are the only non-token
+ * colors, matching the neutrals already used by `body` and the gate.
+ * ------------------------------------------------------------------------- */
+
+.gcm-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg);
+  color: #e5e7eb;
+  font-family: system-ui, sans-serif;
+}
+
+.gcm-gate__card {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 360px;
+  max-width: 90vw;
+  padding: 32px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.gcm-gate__title {
+  margin: 0;
+  font-size: 20px;
+  color: var(--layer-counter);
+}
+
+.gcm-gate__label {
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.gcm-gate__input {
+  padding: 10px 12px;
+  font-size: 14px;
+  color: #e5e7eb;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+/* Visible keyboard-focus indicator — replaces the previously removed
+   `outline: none`. The accent-primary ring is clearly visible against the dark
+   panel, satisfying the accessibility requirement for a visible focus state. */
+.gcm-gate__input:focus {
+  border-color: var(--accent-primary);
+}
+
+.gcm-gate__input:focus-visible {
+  border-color: var(--accent-primary);
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.gcm-gate__error {
+  margin: 0;
+  font-size: 13px;
+  color: #ef4444;
+}
+
+.gcm-gate__button {
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #ffffff;
+  background: var(--accent-primary);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background-color 120ms ease, opacity 120ms ease;
+}
+
+.gcm-gate__button:hover {
+  background: var(--accent-secondary);
+}
+
+.gcm-gate__button:active {
+  background: var(--accent-secondary);
+  transform: translateY(1px);
+}
+
+.gcm-gate__button:focus-visible {
+  outline: 2px solid var(--accent-primary);
+  outline-offset: 2px;
+}
+
+.gcm-gate__button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

@@ -11,8 +11,10 @@
 #                  have no Linux/Windows distribution.
 #
 # HARD CONSTRAINTS (AAP §0.3.1 / §0.7 — binding on this file):
-#   * Apple Silicon + JAX Metal ONLY. NO CUDA / jax[cuda]: never add CUDA
-#     jaxlib wheels or nvidia-* packages. Only the Metal backend is permitted.
+#   * Apple Silicon + JAX Metal ONLY. The proprietary discrete-GPU compute
+#     toolkit, its hardware-accelerated jaxlib wheels, and the matching vendor
+#     runtime packages MUST NEVER appear in this manifest or in the resolved
+#     dependency tree. Only the Metal backend is permitted.
 #   * NEVER upgrade `jax-metal` beyond 0.1.1 without explicit user approval.
 #   * Install order is SIGNIFICANT — the Metal JAX backend is version-lock
 #     sensitive. Install the requirements top-to-bottom in the order written

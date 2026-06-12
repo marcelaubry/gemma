@@ -31,5 +31,8 @@
     "jest-canvas-mock": "^2.5.2",
     "jest-environment-jsdom": "^30",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "^8.5.10"
   }
 }

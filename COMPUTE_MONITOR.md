@@ -225,9 +225,16 @@ clickable **Railway** URL using [`frontend/railway.json`](./frontend/railway.jso
    HTTPS URL) and `NEXT_PUBLIC_PASSWORD` in the Railway project.
 3. **Deploy.**
 
-> **Live URL:** `https://<your-app>.up.railway.app`
-> — *replace this placeholder with the actual clickable Railway URL once the
-> frontend is deployed.*
+> **Deployment status: NOT YET DEPLOYED — no live Railway URL has been
+> provisioned yet.**
+> The frontend is fully deployment-ready: [`frontend/railway.json`](./frontend/railway.json)
+> configures the Railway build/deploy and [`frontend/README.md`](./frontend/README.md)
+> documents the full procedure. Provisioning a live URL requires a Railway
+> account and is completed by following the three steps above. **Once deployed,
+> record the live, clickable Railway URL on the line below** so this document
+> always links to the running deployment:
+>
+> _Live URL: (pending deployment — follow the three steps above to provision)_
 
 Because `NEXT_PUBLIC_API_URL` is a **build-time** variable in Next.js, any change
 to the backend's ngrok URL requires a Railway **redeploy** — see the
