@@ -7,8 +7,8 @@
  * constant and comparing it against itself. This is the gap called out in the
  * review: the Dashboard/useEventSource suites use `MODEL_WARMING_MESSAGE` as
  * their own oracle, so a drifted constant stays green there — these assertions
- * catch any byte-exact CP-PATH5 regression (en-dash U+2013, NO trailing
- * period) on their own.
+ * catch any byte-exact CP-PATH5 regression (en-dash U+2013 AND a required
+ * trailing period, per AAP §0.5.3) on their own.
  */
 
 import {
@@ -33,17 +33,17 @@ afterEach(() => {
 });
 
 describe("resilience message constants (CP-PATH5 byte-exact)", () => {
-  it("MODEL_WARMING_MESSAGE is the exact literal: en-dash U+2013 and NO trailing period", () => {
+  it("MODEL_WARMING_MESSAGE is the exact literal: en-dash U+2013 and a trailing period", () => {
     // Independent oracle: the expected text is spelled out here with an
-    // explicit \u2013 en-dash and no final period — NOT read from the constant.
+    // explicit \u2013 en-dash and a final period — NOT read from the constant.
     expect(MODEL_WARMING_MESSAGE).toBe(
-      "Model warming up, this may take 20\u201340 seconds on first run",
+      "Model warming up, this may take 20\u201340 seconds on first run.",
     );
     expect(MODEL_WARMING_MESSAGE).toContain("\u2013"); // en-dash present
     expect(MODEL_WARMING_MESSAGE).not.toContain("\u2014"); // not an em-dash
     expect(MODEL_WARMING_MESSAGE).not.toContain("-"); // not an ASCII hyphen
-    expect(MODEL_WARMING_MESSAGE.endsWith(".")).toBe(false); // no trailing period
-    expect(MODEL_WARMING_MESSAGE.endsWith("run")).toBe(true);
+    expect(MODEL_WARMING_MESSAGE.endsWith(".")).toBe(true); // trailing period present (AAP §0.5.3)
+    expect(MODEL_WARMING_MESSAGE.endsWith("run.")).toBe(true);
   });
 
   it("BACKEND_OFFLINE_MESSAGE is the exact literal with an em-dash U+2014", () => {

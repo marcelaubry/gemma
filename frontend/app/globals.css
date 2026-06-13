@@ -103,6 +103,8 @@ body {
 
 .gcm-gate__input {
   padding: 10px 12px;
+  /* >= 44px tall to meet the touch-target guidance (QA Issue 5). */
+  min-height: 44px;
   font-size: 14px;
   color: #e5e7eb;
   background: var(--bg);
@@ -135,20 +137,26 @@ body {
 }
 
 /*
- * ACCEPTED (documented) contrast note — applies to BOTH primary buttons
- * (.gcm-gate__button and .gcm-dash__button): white (#ffffff) text on the
- * primary accent (--accent-primary: #6366f1) measures 4.47:1 — just 0.03 below
- * the WCAG AA 4.5:1 normal-text threshold, but ABOVE the 3:1 UI-component
- * threshold. #6366f1 is an IMMUTABLE mandated palette value (AAP §0.1.2 /
- * §0.7.1) and white is already the maximum-contrast text against it, so this
- * ratio is spec-inherent and cannot be improved without violating the
- * non-negotiable palette. It is therefore accepted as-is (QA FINAL-9 Issue 3,
- * INFO).
+ * Primary-button contrast — resolved via WCAG "large text" (QA FINAL-ACCEPTANCE
+ * Issue 4). Applies to BOTH primary buttons (.gcm-gate__button and
+ * .gcm-dash__button): white (#ffffff) text on the primary accent
+ * (--accent-primary: #6366f1) measures 4.47:1, and on the hover/active
+ * secondary accent (--accent-secondary: #8b5cf6) measures 4.23:1. Both accents
+ * are IMMUTABLE mandated palette values (AAP §0.1.2 / §0.7.1) and white is
+ * already the maximum-contrast text against them, so neither ratio can be
+ * raised without violating the non-negotiable palette. The buttons therefore
+ * render the label as WCAG "large scale" text — font-size: 19px (≈14.25pt ≥
+ * the 14pt bold floor) with font-weight: 700 — for which the applicable
+ * contrast threshold is 3:1 (WCAG 1.4.3), not 4.5:1. Both 4.47:1 and 4.23:1
+ * clear 3:1, so the color-contrast audit passes in the default AND hover/active
+ * states with the palette hex values left completely unchanged. The min-height
+ * of 44px also satisfies the 44px touch-target guidance (QA Issue 5).
  */
 .gcm-gate__button {
   padding: 10px 12px;
-  font-size: 14px;
-  font-weight: 600;
+  min-height: 44px;
+  font-size: 19px;
+  font-weight: 700;
   color: #ffffff;
   background: var(--accent-primary);
   border: none;
@@ -197,6 +205,8 @@ body {
 .gcm-dash__input {
   flex: 1;
   padding: 10px 12px;
+  /* >= 44px tall to meet the touch-target guidance (QA Issue 5). */
+  min-height: 44px;
   font-size: 14px;
   color: #e5e7eb;
   background: var(--panel);
@@ -216,12 +226,16 @@ body {
   outline-offset: 2px;
 }
 
-/* White on --accent-primary #6366f1 = 4.47:1: accepted, palette-forced — see
-   the documented contrast note above .gcm-gate__button (QA FINAL-9 Issue 3). */
+/* White on the immutable accents (#6366f1 = 4.47:1 default, #8b5cf6 = 4.23:1
+   hover/active) is rendered as WCAG "large text" (19px / 700-weight), so the
+   3:1 large-text threshold applies and both states pass — see the documented
+   contrast note above .gcm-gate__button (QA FINAL-ACCEPTANCE Issue 4). The
+   min-height: 44px also meets the touch-target guidance (QA Issue 5). */
 .gcm-dash__button {
   padding: 10px 18px;
-  font-size: 14px;
-  font-weight: 600;
+  min-height: 44px;
+  font-size: 19px;
+  font-weight: 700;
   color: #ffffff;
   background: var(--accent-primary);
   border: none;

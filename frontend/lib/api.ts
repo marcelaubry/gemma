@@ -20,12 +20,12 @@ export const BACKEND_OFFLINE_MESSAGE =
 
 /**
  * Verbatim resilience message shown when /analyze does not begin streaming
- * within 5 seconds. Reproduced EXACTLY from the CP-PATH5 contract (AAP §0.5.3):
- * the dash between 20 and 40 is an en-dash (U+2013) and there is intentionally
- * NO trailing period. Do not alter the wording or punctuation.
+ * within 5 seconds. Reproduced EXACTLY from AAP §0.5.3: the dash between 20 and
+ * 40 is an en-dash (U+2013) and the sentence ENDS WITH A TRAILING PERIOD ('.').
+ * Do not alter the wording or punctuation.
  */
 export const MODEL_WARMING_MESSAGE =
-  "Model warming up, this may take 20–40 seconds on first run";
+  "Model warming up, this may take 20–40 seconds on first run.";
 
 /** Default timeout (ms) for the /health probe. */
 export const HEALTH_TIMEOUT_MS = 3000;

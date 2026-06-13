@@ -97,3 +97,38 @@ gemma==4.0.1
 # dependencies (flax, orbax-checkpoint, sentencepiece, kauldron, einops, etils,
 # grain, treescope, absl-py, numpy, jaxtyping, dialog, fastmcp, mcp) are pulled
 # in automatically by the install above and MUST NOT be pinned or edited here.
+
+# -----------------------------------------------------------------------------
+# 4) SECURITY OVERRIDES — apply AFTER the install above (post-install step)
+# -----------------------------------------------------------------------------
+# SQLAlchemy transitive CVE (PYSEC-2019-123 / CVE-2019-7164 — SQL injection via
+# `order_by`, fixed in SQLAlchemy >= 1.3.0b3). gemma pulls in `kauldron`, which
+# requires `xmanager`, whose 0.7.1 release (the LATEST available) HARD-pins the
+# vulnerable `sqlalchemy==1.2.19`. xmanager is a DeepMind experiment-management
+# tool that the Gemma Compute Monitor NEVER imports — `from gemma import gm` does
+# not load kauldron/xmanager/sqlalchemy — so the package sits in the dependency
+# tree but is entirely unused at runtime.
+#
+# We therefore deliberately SUPERSEDE xmanager's stale exact pin with a patched,
+# CVE-free SQLAlchemy. This MUST be a post-install upgrade and NOT an active pin
+# in this file: adding `SQLAlchemy>=2.0` as a normal requirement line makes the
+# resolver fail with ResolutionImpossible against xmanager's `sqlalchemy==1.2.19`.
+# Run this ONCE, immediately after `pip install -r requirements.txt`:
+#
+#   pip install --upgrade "SQLAlchemy>=2.0,<3"
+#
+# This removes the only critical/high transitive CVE from the backend tree.
+# Verified: `pip-audit` then reports SQLAlchemy as clean, `from gemma import gm`
+# and `Gemma3_4B(text_only=True)` still load (num_layers=34, num_kv_heads=4,
+# head_dim=256), and the backend test suite still passes (13 passed). The ONLY
+# side effect is a COSMETIC `pip check` note that xmanager's metadata still
+# expects 1.2.19 — harmless, because xmanager is never imported or executed.
+#
+# TOOLING-ONLY NOTE (NOT a production-runtime concern): `black` (CVE-2026-32274)
+# may appear in DEVELOPMENT environments via `pyink`, which gemma/kauldron/etils/
+# treescope/others declare ONLY as a `dev` EXTRA (`extra == "dev"`). It is NOT in
+# this manifest's production install closure, so the deployed backend runtime
+# does not contain it. `pyink` hard-pins `black==25.12.0`, so black cannot be
+# upgraded without replacing pyink itself; the dev toolchain is left as-is and we
+# rely on black's absence from the production closure (no runtime exposure).
+

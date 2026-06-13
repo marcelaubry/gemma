@@ -80,29 +80,35 @@ export default function Dashboard() {
     borderColor: string;
   }[] = [];
   if (health === "offline") {
+    // Offline is the highest-priority status: when the backend is unreachable,
+    // show ONLY the offline banner and suppress any stale model-warming or
+    // stream-error banner left over from a prior analyze attempt, so the
+    // operator sees a single, unambiguous status rather than contradictory
+    // alerts (QA FINAL-ACCEPTANCE Issue 8).
     banners.push({
       key: "offline",
       text: BACKEND_OFFLINE_MESSAGE,
       textColor: "#f87171",
       borderColor: "#ef4444",
     });
-  }
-  if (warming) {
-    // Amber (#f59e0b) is 7.43:1 on the panel, so text and border share it.
-    banners.push({
-      key: "warming",
-      text: MODEL_WARMING_MESSAGE,
-      textColor: PALETTE.counter,
-      borderColor: PALETTE.counter,
-    });
-  }
-  if (error !== null) {
-    banners.push({
-      key: "error",
-      text: error,
-      textColor: "#f87171",
-      borderColor: "#ef4444",
-    });
+  } else {
+    if (warming) {
+      // Amber (#f59e0b) is 7.43:1 on the panel, so text and border share it.
+      banners.push({
+        key: "warming",
+        text: MODEL_WARMING_MESSAGE,
+        textColor: PALETTE.counter,
+        borderColor: PALETTE.counter,
+      });
+    }
+    if (error !== null) {
+      banners.push({
+        key: "error",
+        text: error,
+        textColor: "#f87171",
+        borderColor: "#ef4444",
+      });
+    }
   }
 
   return (
@@ -150,6 +156,8 @@ export default function Dashboard() {
       */}
       <form onSubmit={onSubmit} className="gcm-dash__form">
         <input
+          id="prompt"
+          name="prompt"
           aria-label="Prompt"
           placeholder="Enter a prompt to analyze…"
           value={prompt}

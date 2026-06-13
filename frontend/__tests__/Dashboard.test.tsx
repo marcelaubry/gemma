@@ -186,9 +186,38 @@ describe("Dashboard", () => {
     );
   });
 
-  it("renders resilience/error banners with role='alert' (F4: assertive live region)", async () => {
-    // Surface all three resilience banners at once: backend offline
-    // (checkHealth → null), model warming, and a stream error.
+  it("renders online resilience/error banners with role='alert' (F4: assertive live region)", async () => {
+    // While the backend is reachable (checkHealth → ready), the model-warming
+    // and stream-error banners both surface as assertive live regions.
+    mockCheckHealth.mockResolvedValue({ status: "ready", model: "gemma-3-4b" });
+    mockUseEventSource.mockReturnValue(
+      hookState({
+        status: "error",
+        error: "Request failed with status 500",
+        warming: true,
+      }),
+    );
+    render(<Dashboard />);
+
+    expect(await screen.findByText(MODEL_WARMING_MESSAGE)).toHaveAttribute(
+      "role",
+      "alert",
+    );
+    expect(screen.getByText("Request failed with status 500")).toHaveAttribute(
+      "role",
+      "alert",
+    );
+    // The offline banner is NOT shown while the backend is reachable.
+    expect(screen.queryByText(BACKEND_OFFLINE_MESSAGE)).not.toBeInTheDocument();
+    // None of the resilience banners use the weaker role="status".
+    expect(screen.queryByRole("status")).not.toBeInTheDocument();
+  });
+
+  it("shows ONLY the offline banner when offline, suppressing stale warming/error banners (QA Issue 8)", async () => {
+    // Even when the hook still carries a stale model-warming flag and a prior
+    // stream error, an offline backend (checkHealth → null) must surface a
+    // single, unambiguous offline alert and suppress the contradictory banners
+    // so the operator never sees stale, conflicting status at once.
     mockCheckHealth.mockResolvedValue(null);
     mockUseEventSource.mockReturnValue(
       hookState({
@@ -201,15 +230,18 @@ describe("Dashboard", () => {
 
     const offline = await screen.findByText(BACKEND_OFFLINE_MESSAGE);
     expect(offline).toHaveAttribute("role", "alert");
-    expect(screen.getByText(MODEL_WARMING_MESSAGE)).toHaveAttribute(
-      "role",
-      "alert",
-    );
-    expect(screen.getByText("Request failed with status 500")).toHaveAttribute(
-      "role",
-      "alert",
-    );
-    // None of the resilience banners use the weaker role="status".
+    // The stale warming and error banners are suppressed while offline.
+    await waitFor(() => {
+      expect(
+        screen.queryByText(MODEL_WARMING_MESSAGE),
+      ).not.toBeInTheDocument();
+    });
+    expect(
+      screen.queryByText("Request failed with status 500"),
+    ).not.toBeInTheDocument();
+    // Exactly one alert region is present, and none uses the weaker
+    // role="status".
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 });

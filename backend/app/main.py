@@ -74,6 +74,8 @@ from typing import AsyncIterator
 import anyio
 from fastapi import FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 # Sibling imports. Only the CHEAP modules are imported at module scope:
 # config/model_loader/schemas pull in no JAX/gemma. ``app.sse`` is imported
@@ -192,6 +194,79 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
 
 
 # -----------------------------------------------------------------------------
+# Security/hardening response headers (QA FINAL-ACCEPTANCE Issue 7)
+# -----------------------------------------------------------------------------
+class SecurityHeadersMiddleware:
+  """Pure-ASGI middleware adding conservative security headers to every response.
+
+  Implemented as a **raw ASGI** middleware (deliberately NOT
+  ``starlette.middleware.base.BaseHTTPMiddleware``) so it never buffers or
+  otherwise interferes with the streaming ``EventSourceResponse`` served by
+  ``POST /analyze``: it only rewrites the header list on the single
+  ``http.response.start`` event and passes every other ASGI event — including
+  every SSE ``http.response.body`` chunk — through untouched. The 429
+  single-flight rejection and the client-disconnect cleanup are likewise
+  unaffected, since neither the request stream nor the body stream is wrapped.
+
+  Each header is applied with :meth:`MutableHeaders.setdefault`, so any value a
+  handler already chose is preserved — most importantly the SSE response's own
+  ``Cache-Control`` (``no-cache``) and ``Content-Type`` (``text/event-stream``)
+  are left intact. ``Strict-Transport-Security`` is emitted **only** when the
+  request arrived over HTTPS — directly (``scope['scheme'] == 'https'``) or via
+  a TLS-terminating proxy such as ngrok/Railway (``X-Forwarded-Proto: https``) —
+  so plain-HTTP local development never receives an HSTS policy.
+
+  Headers set (defaults only):
+    * ``X-Content-Type-Options: nosniff`` — disable MIME sniffing.
+    * ``X-Frame-Options: DENY`` — disallow framing (clickjacking defense).
+    * ``Referrer-Policy: no-referrer`` — never leak the URL as a referrer.
+    * ``Cache-Control: no-store`` — this telemetry API is stateless and must
+      not be cached (no-op for the SSE stream, which already sets no-cache).
+    * ``Strict-Transport-Security`` — HTTPS transports only.
+  """
+
+  def __init__(self, app: ASGIApp) -> None:
+    self.app = app
+
+  async def __call__(
+      self, scope: Scope, receive: Receive, send: Send
+  ) -> None:
+    # Only HTTP responses carry headers; pass websockets/lifespan straight
+    # through so this middleware is a transparent no-op for them.
+    if scope["type"] != "http":
+      await self.app(scope, receive, send)
+      return
+
+    # Treat the request as secure if it arrived over TLS directly or was
+    # forwarded as HTTPS by a TLS-terminating proxy (ngrok / Railway).
+    is_https = scope.get("scheme") == "https"
+    request_headers = dict(scope.get("headers") or [])
+    forwarded_proto = request_headers.get(b"x-forwarded-proto")
+    if forwarded_proto is not None:
+      first_proto = forwarded_proto.split(b",", 1)[0].strip().lower()
+      if first_proto == b"https":
+        is_https = True
+
+    async def send_with_security_headers(message: Message) -> None:
+      if message["type"] == "http.response.start":
+        headers = MutableHeaders(scope=message)
+        headers.setdefault("x-content-type-options", "nosniff")
+        headers.setdefault("x-frame-options", "DENY")
+        headers.setdefault("referrer-policy", "no-referrer")
+        # setdefault preserves the SSE response's own Cache-Control (no-cache);
+        # plain JSON responses (e.g. /health) get this no-store default.
+        headers.setdefault("cache-control", "no-store")
+        if is_https:
+          headers.setdefault(
+              "strict-transport-security",
+              "max-age=63072000; includeSubDomains",
+          )
+      await send(message)
+
+    await self.app(scope, receive, send_with_security_headers)
+
+
+# -----------------------------------------------------------------------------
 # Application object (MUST be named ``app`` -> ``app.main:app``)
 # -----------------------------------------------------------------------------
 app = FastAPI(title="Gemma Compute Monitor", lifespan=lifespan)
@@ -208,6 +283,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Security/hardening headers (QA FINAL-ACCEPTANCE Issue 7) on EVERY response —
+# including the streaming SSE /analyze response and error responses. Added after
+# CORSMiddleware; Starlette wraps the most-recently-added middleware OUTERMOST,
+# so on the response path this runs after CORS has set its headers and uses
+# setdefault, never clobbering the CORS or SSE-specific headers.
+app.add_middleware(SecurityHeadersMiddleware)
 
 
 # -----------------------------------------------------------------------------
