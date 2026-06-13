@@ -197,7 +197,7 @@ async def lifespan(fastapi_app: FastAPI) -> AsyncIterator[None]:
 # Security/hardening response headers (QA FINAL-ACCEPTANCE Issue 7)
 # -----------------------------------------------------------------------------
 class SecurityHeadersMiddleware:
-  """Pure-ASGI middleware adding conservative security headers to every response.
+  """Pure-ASGI middleware adding conservative security headers to responses.
 
   Implemented as a **raw ASGI** middleware (deliberately NOT
   ``starlette.middleware.base.BaseHTTPMiddleware``) so it never buffers or
@@ -225,7 +225,9 @@ class SecurityHeadersMiddleware:
     * ``Strict-Transport-Security`` — HTTPS transports only.
   """
 
-  def __init__(self, app: ASGIApp) -> None:
+  def __init__(self, app: ASGIApp) -> None:  # pylint: disable=redefined-outer-name
+    # ``app`` is the conventional ASGI parameter name (it is the wrapped ASGI
+    # application); it intentionally shadows the module-level ``app`` singleton.
     self.app = app
 
   async def __call__(

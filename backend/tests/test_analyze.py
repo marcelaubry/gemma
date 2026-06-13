@@ -22,7 +22,7 @@ of the seven mandated checks from the Agent Action Plan:
 
 Mocking strategy
 ----------------
-The heavy gemma/JAX work is mocked at its leaves -- ``instrumentation.run_layers``
+Heavy gemma/JAX work is mocked at its leaves -- ``instrumentation.run_layers``
 (the eager per-layer harness), the sampler ``sse._time_tokens``, and
 ``model_loader``'s readiness/accessors -- and the ``powermetrics`` subprocess is
 stubbed, so the checks are deterministic, fast, and require neither JAX, Metal,
@@ -44,6 +44,21 @@ Run from inside ``backend/``::
 Constraints (AAP §0.7): target runtime Python >= 3.12; no CUDA / non-Metal GPU
 backend is referenced; no root is required; no ``gemma/**`` file is modified.
 """
+
+# pytest's fixture-injection and mock-signature idioms intentionally trigger a
+# few pylint checks that do not indicate real problems in this test module:
+#  * redefined-outer-name -- a test receives a fixture as a parameter whose name
+#    matches the fixture function (the standard pytest dependency-injection
+#    idiom, e.g. the ``sse_client`` fixture below).
+#  * unused-argument -- a fake/mock callable must mirror the REAL signature it
+#    replaces (e.g. ``run_layers(model, params, config, prompt)``) even when a
+#    given test exercises only some of those parameters.
+#  * import-outside-toplevel -- the heavy ``app.sse`` / ``app.instrumentation``
+#    / ``app.metrics`` modules (which transitively import JAX) are imported
+#    lazily INSIDE each test, after the conftest import safety-net has run and
+#    after the relevant ``monkeypatch`` is in place -- the same deliberate
+#    lazy-import pattern ``app.main`` uses for ``/analyze``.
+# pylint: disable=redefined-outer-name,unused-argument,import-outside-toplevel
 
 from __future__ import annotations
 
@@ -211,7 +226,7 @@ def _collect_analyze_events(client, prompt: str) -> tuple[int, list[dict]]:
 
 
 # -----------------------------------------------------------------------------
-# Check 1: the stream emits EXACTLY ``config.num_layers`` layer events (34, not 18)
+# Check 1: stream emits EXACTLY ``config.num_layers`` layer events (34, not 18)
 # -----------------------------------------------------------------------------
 def test_analyze_emits_exactly_num_layers_layer_events(sse_client, fake_config):
   """``/analyze`` emits exactly ``config.num_layers`` layer events.
@@ -254,7 +269,7 @@ def test_layer_events_match_immutable_schema(sse_client, fake_config):
     sse_client: Ready client streaming the deterministic SSE body.
     fake_config: The mocked configuration (used to assert the event count too).
   """
-  _status_code, events = _collect_analyze_events(sse_client, "hi")
+  _, events = _collect_analyze_events(sse_client, "hi")
   layer_events = [e for e in events if "layer" in e]
   assert len(layer_events) == fake_config.num_layers
   for event in layer_events:
@@ -283,7 +298,7 @@ def test_stream_terminated_by_final_event(sse_client, fake_config):
     sse_client: Ready client streaming the deterministic SSE body.
     fake_config: The mocked configuration (``num_layers == 34``).
   """
-  _status_code, events = _collect_analyze_events(sse_client, "hi")
+  _, events = _collect_analyze_events(sse_client, "hi")
   assert events, "expected at least one SSE event"
   # The LAST event is the terminal per-token event.
   final = events[-1]
@@ -325,7 +340,9 @@ class _InFlightLock:
     return None
 
 
-def test_second_concurrent_analyze_returns_429(make_client, app_main, monkeypatch):
+def test_second_concurrent_analyze_returns_429(
+    make_client, app_main, monkeypatch
+):
   """A second ``/analyze`` while one is in flight is rejected with ``429``.
 
   Deterministically reproduces the single-flight contract (AAP §0.7.1): with
@@ -384,7 +401,7 @@ def test_gpu_pct_zero_when_powermetrics_absent(monkeypatch):
 
 
 def test_gpu_pct_zero_on_timeout(monkeypatch):
-  """``gpu_pct()`` returns ``0.0`` when the ``powermetrics`` subprocess times out.
+  """``gpu_pct()`` returns ``0.0`` when ``powermetrics`` subprocess times out.
 
   With the tool reported as present but its subprocess raising
   :class:`subprocess.TimeoutExpired` at the 200 ms timeout, :func:`app.metrics.

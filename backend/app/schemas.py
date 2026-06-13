@@ -171,7 +171,8 @@ class HealthResponse(BaseModel):
     model="wrong")`` raises ``ValidationError`` rather than silently accepting
     drift. The default keeps the field optional for callers while the type
     guarantees the serialized value is always exactly ``gemma-3-4b``, enforcing
-    the immutable ``GET /health`` contract (AAP §0.1.2 / §0.7.1) byte-for-byte."""
+    the immutable ``GET /health`` contract (AAP §0.1.2 / §0.7.1)
+    byte-for-byte."""
 
 
 # Explicit public API. Listing the four contract models keeps wildcard imports
