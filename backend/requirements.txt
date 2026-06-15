@@ -1,0 +1,134 @@
+# =============================================================================
+# Gemma Compute Monitor — backend Python dependencies
+# =============================================================================
+# Project        : Gemma Compute Monitor backend (FastAPI telemetry server)
+# Python         : >= 3.12   (governed by gemma's `requires-python = ">=3.12"`,
+#                  verified in the repo-root pyproject.toml — do NOT assume 3.10;
+#                  gemma 4.0.1 will not install on anything below Python 3.12)
+# Target platform: Apple Silicon (M-series, macOS 14+) with the JAX **Metal**
+#                  backend ONLY. This manifest is the production install recipe
+#                  for that Mac; the Metal wheels below are macOS/arm64-only and
+#                  have no Linux/Windows distribution.
+#
+# HARD CONSTRAINTS (AAP §0.3.1 / §0.7 — binding on this file):
+#   * Apple Silicon + JAX Metal ONLY. The proprietary discrete-GPU compute
+#     toolkit, its hardware-accelerated jaxlib wheels, and the matching vendor
+#     runtime packages MUST NEVER appear in this manifest or in the resolved
+#     dependency tree. Only the Metal backend is permitted.
+#   * NEVER upgrade `jax-metal` beyond 0.1.1 without explicit user approval.
+#   * Install order is SIGNIFICANT — the Metal JAX backend is version-lock
+#     sensitive. Install the requirements top-to-bottom in the order written
+#     here: jax-metal -> jaxlib -> fastapi -> uvicorn[standard] -> sse-starlette
+#     -> psutil -> gemma.
+#
+# Usage — this manifest is CWD-independent and resolves from EITHER the
+# repository root or this `backend/` directory (the gemma requirement is the
+# portable PyPI pin `gemma==4.0.1`, not a CWD-relative editable path):
+#   # from the repository root (matches CI manifest-closure checks):
+#   python3.12 -m venv .venv && source .venv/bin/activate
+#   pip install -r backend/requirements.txt
+#   # ...or from inside backend/:
+#   pip install -r requirements.txt
+# For local development against the IN-REPO gemma source, install it editable
+# from the repository root INSTEAD of the PyPI pin (see the gemma section below).
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# 1) Metal JAX backend — INSTALL FIRST (Apple Silicon / macOS arm64 only)
+# -----------------------------------------------------------------------------
+jax-metal==0.1.1
+jaxlib==0.5.0
+jax==0.5.0
+# JAX/JAXLIB PIN RATIONALE — read before changing any of the three pins above:
+#   `jax-metal==0.1.1` (KEPT — never upgraded) does NOT work with the very old
+#   `jaxlib==0.4.25`: the Metal PJRT plugin requires `jaxlib>=0.4.34` / `jax>=0.4.34`
+#   (its IR ops were updated for jaxlib>=0.4.30), so pinning 0.4.25 made the
+#   macOS-arm64 install UNSATISFIABLE. Per AAP §0.7.2 the resolution is to pin
+#   `jax`/`jaxlib` UP to the highest `jax-metal==0.1.1`-compatible version — that
+#   version is 0.5.0 (community-verified working combination: jax-metal 0.1.1 +
+#   jax 0.5.0 + jaxlib 0.5.0; jax/jaxlib 0.5.1+ break jax-metal 0.1.1, so 0.5.0
+#   is the ceiling). `jax` and `jaxlib` are released in lockstep and MUST stay at
+#   the SAME version — keep both at 0.5.0.
+#   gemma 4.0.1 declares an *unpinned, modern* `jax` (the repo-root pyproject.toml
+#   lists a bare `jax` with no upper bound), which `jax==0.5.0` satisfies, so the
+#   full backend dependency set now resolves on macOS arm64 / Python 3.12.
+#   If a future gemma release ever requires a JAX newer than 0.5.0:
+#     1. Optionally export `ENABLE_PJRT_COMPATIBILITY=1` to let the Metal PJRT
+#        plugin run with a jaxlib beyond its strict minimum.
+#     2. ESCALATE to the user — NEVER silently upgrade `jax-metal` itself.
+
+# -----------------------------------------------------------------------------
+# 2) Web framework / SSE streaming / system metrics (exact pins, in order)
+# -----------------------------------------------------------------------------
+# SECURITY PIN RATIONALE: the older `fastapi==0.111.0` constrained Starlette to
+# `<0.38.0`, which forced the vulnerable `starlette==0.37.2` (multipart DoS and
+# host-header path-poisoning advisories). `fastapi==0.136.3` requires
+# `starlette>=0.46.0`, resolving to a FIXED Starlette (>=1.3.0) with no known
+# advisories. `sse-starlette==3.4.4` (requires `starlette>=0.49.1`) and the
+# uvicorn/psutil pins below are the matching, conflict-free set verified with
+# `pip check` and the backend test suite. These are pure-Python / universal
+# wheels, so they are identical on macOS arm64 and Linux.
+fastapi==0.136.3
+uvicorn[standard]==0.49.0
+sse-starlette==3.4.4
+psutil==7.2.2
+
+# -----------------------------------------------------------------------------
+# 3) gemma — Gemma 3 4B model library (reused AS-IS; install LAST)
+# -----------------------------------------------------------------------------
+# Portable PyPI pin of gemma 4.0.1 — same version as the in-repo
+# `gemma.__version__ = "4.0.1"`, composed UNMODIFIED (only instrumented). This
+# pin is used (instead of a CWD-relative `-e ..`) so the manifest resolves
+# IDENTICALLY whether `pip install -r backend/requirements.txt` is run from the
+# repository ROOT (e.g. CI manifest-closure checks) or from inside `backend/`.
+# A bare editable path is intentionally NOT used here because pip resolves
+# `-e <path>` relative to the current working directory, so `-e ..` only worked
+# from inside `backend/` and silently pointed at the parent of the repo when run
+# from the root.
+gemma==4.0.1
+# Editable alternative for LOCAL DEVELOPMENT against the in-repo gemma source
+# (use INSTEAD of the pin above, run from the repository ROOT which holds
+# gemma's pyproject.toml):
+#   pip install -e .            # from the repository root
+#   # equivalently, from inside backend/:  pip install -e ..
+#
+# gemma is reused AS-IS and only instrumented — do NOT reimplement model
+# loading, tokenization, or the forward pass here. Its OWN transitive
+# dependencies (flax, orbax-checkpoint, sentencepiece, kauldron, einops, etils,
+# grain, treescope, absl-py, numpy, jaxtyping, dialog, fastmcp, mcp) are pulled
+# in automatically by the install above and MUST NOT be pinned or edited here.
+
+# -----------------------------------------------------------------------------
+# 4) SECURITY OVERRIDES — apply AFTER the install above (post-install step)
+# -----------------------------------------------------------------------------
+# SQLAlchemy transitive CVE (PYSEC-2019-123 / CVE-2019-7164 — SQL injection via
+# `order_by`, fixed in SQLAlchemy >= 1.3.0b3). gemma pulls in `kauldron`, which
+# requires `xmanager`, whose 0.7.1 release (the LATEST available) HARD-pins the
+# vulnerable `sqlalchemy==1.2.19`. xmanager is a DeepMind experiment-management
+# tool that the Gemma Compute Monitor NEVER imports — `from gemma import gm` does
+# not load kauldron/xmanager/sqlalchemy — so the package sits in the dependency
+# tree but is entirely unused at runtime.
+#
+# We therefore deliberately SUPERSEDE xmanager's stale exact pin with a patched,
+# CVE-free SQLAlchemy. This MUST be a post-install upgrade and NOT an active pin
+# in this file: adding `SQLAlchemy>=2.0` as a normal requirement line makes the
+# resolver fail with ResolutionImpossible against xmanager's `sqlalchemy==1.2.19`.
+# Run this ONCE, immediately after `pip install -r requirements.txt`:
+#
+#   pip install --upgrade "SQLAlchemy>=2.0,<3"
+#
+# This removes the only critical/high transitive CVE from the backend tree.
+# Verified: `pip-audit` then reports SQLAlchemy as clean, `from gemma import gm`
+# and `Gemma3_4B(text_only=True)` still load (num_layers=34, num_kv_heads=4,
+# head_dim=256), and the backend test suite still passes (13 passed). The ONLY
+# side effect is a COSMETIC `pip check` note that xmanager's metadata still
+# expects 1.2.19 — harmless, because xmanager is never imported or executed.
+#
+# TOOLING-ONLY NOTE (NOT a production-runtime concern): `black` (CVE-2026-32274)
+# may appear in DEVELOPMENT environments via `pyink`, which gemma/kauldron/etils/
+# treescope/others declare ONLY as a `dev` EXTRA (`extra == "dev"`). It is NOT in
+# this manifest's production install closure, so the deployed backend runtime
+# does not contain it. `pyink` hard-pins `black==25.12.0`, so black cannot be
+# upgraded without replacing pyink itself; the dev toolchain is left as-is and we
+# rely on black's absence from the production closure (no runtime exposure).
+
